@@ -5,8 +5,9 @@ import {
   PRD_PRODUCT_CONTEXT,
   PRD_ROLE_INTRO,
 } from '@/lib/agent-prompts';
-import { assembleFeatureContext } from '@/lib/context';
 import { finalizeOpenPrdDraft } from '@/lib/artifact-persistence';
+import { requireUser } from '@/lib/auth/require-user';
+import { assembleFeatureContext } from '@/lib/context';
 import { patchFeatureStatus } from '@/lib/prd-persistence';
 
 export const maxDuration = 60;
@@ -24,6 +25,11 @@ const CONTINUATION_SUFFIX = `
 `;
 
 export async function POST(request: Request) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
+  const sb = auth.supabase;
+
   try {
     const body = await request.json();
     const { featureId, name, purpose, requirements, revision, continue: continueDraft } = body as {
@@ -39,7 +45,7 @@ export async function POST(request: Request) {
       typeof continueDraft === 'string' && continueDraft.length > 0 ? continueDraft : '';
 
     if (featureId) {
-      const context = await assembleFeatureContext(featureId, 'prd', {
+      const context = await assembleFeatureContext(sb, featureId, 'prd', {
         userQuery: revision || undefined,
         enableRetrieval: !!revision,
         omitSavedPrdDocument: continuationPrefix.length > 0,
@@ -65,9 +71,9 @@ export async function POST(request: Request) {
             const merged =
               continuationPrefix.length > 0 ? `${continuationPrefix}${text}` : text;
             if (merged.length > 0) {
-              const saved = await finalizeOpenPrdDraft(featureId, merged);
+              const saved = await finalizeOpenPrdDraft(sb, featureId, merged);
               if (saved.ok) {
-                await patchFeatureStatus(featureId, 'done');
+                await patchFeatureStatus(sb, featureId, 'done');
               } else {
                 console.error('[prd agent] onFinish finalize failed', saved.error);
               }

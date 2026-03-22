@@ -1,10 +1,13 @@
-import { supabase } from '@/lib/supabase';
+import { requireUser } from '@/lib/auth/require-user';
 import { NextResponse, NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const workspaceId = request.nextUrl.searchParams.get('workspaceId');
 
-  let query = supabase
+  let query = auth.supabase
     .from('features')
     .select('*')
     .order('updated_at', { ascending: false });
@@ -28,6 +31,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const body = await request.json();
   const { name, purpose, requirements, workspace_id, status, priority } = body;
 
@@ -38,7 +44,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.supabase
     .from('features')
     .insert({
       name,

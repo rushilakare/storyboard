@@ -1,21 +1,41 @@
--- RLS for authenticated users: workspace owner (created_by = auth.uid()).
--- Run after schema.sql and migration-auth-iam.sql (or use migration-auth-iam.sql alone on existing DBs that already enabled RLS).
--- The app uses the anon key with a logged-in user JWT (Supabase Auth).
+-- IAM: Supabase Auth + workspace ownership (run in SQL Editor after schema exists).
+-- 1) Adds workspaces.created_by → auth.users
+-- 2) Replaces wide-open anon RLS with authenticated + owner checks
+--
+-- After running: assign legacy rows if needed, then sign in via the app.
+--   update workspaces set created_by = '<your-auth.users.id>' where created_by is null;
 
-alter table workspaces enable row level security;
-alter table features enable row level security;
-alter table prd_documents enable row level security;
-alter table feature_messages enable row level security;
-alter table feature_artifacts enable row level security;
+alter table workspaces
+  add column if not exists created_by uuid references auth.users (id) on delete cascade;
+
+-- --- Drop legacy anon policies (names from rls-policies.sql) ---
 
 drop policy if exists "workspaces_select_anon" on workspaces;
 drop policy if exists "workspaces_insert_anon" on workspaces;
 drop policy if exists "workspaces_update_anon" on workspaces;
 drop policy if exists "workspaces_delete_anon" on workspaces;
-drop policy if exists "workspaces_select_own" on workspaces;
-drop policy if exists "workspaces_insert_own" on workspaces;
-drop policy if exists "workspaces_update_own" on workspaces;
-drop policy if exists "workspaces_delete_own" on workspaces;
+
+drop policy if exists "features_select_anon" on features;
+drop policy if exists "features_insert_anon" on features;
+drop policy if exists "features_update_anon" on features;
+drop policy if exists "features_delete_anon" on features;
+
+drop policy if exists "prd_select_anon" on prd_documents;
+drop policy if exists "prd_insert_anon" on prd_documents;
+drop policy if exists "prd_update_anon" on prd_documents;
+drop policy if exists "prd_delete_anon" on prd_documents;
+
+drop policy if exists "feature_messages_select_anon" on feature_messages;
+drop policy if exists "feature_messages_insert_anon" on feature_messages;
+drop policy if exists "feature_messages_update_anon" on feature_messages;
+drop policy if exists "feature_messages_delete_anon" on feature_messages;
+
+drop policy if exists "feature_artifacts_select_anon" on feature_artifacts;
+drop policy if exists "feature_artifacts_insert_anon" on feature_artifacts;
+drop policy if exists "feature_artifacts_update_anon" on feature_artifacts;
+drop policy if exists "feature_artifacts_delete_anon" on feature_artifacts;
+
+-- --- Authenticated policies: workspace owner (created_by = auth.uid()) ---
 
 create policy "workspaces_select_own" on workspaces for select to authenticated
   using (created_by = auth.uid());
@@ -29,15 +49,6 @@ create policy "workspaces_update_own" on workspaces for update to authenticated
 
 create policy "workspaces_delete_own" on workspaces for delete to authenticated
   using (created_by = auth.uid());
-
-drop policy if exists "features_select_anon" on features;
-drop policy if exists "features_insert_anon" on features;
-drop policy if exists "features_update_anon" on features;
-drop policy if exists "features_delete_anon" on features;
-drop policy if exists "features_select_own" on features;
-drop policy if exists "features_insert_own" on features;
-drop policy if exists "features_update_own" on features;
-drop policy if exists "features_delete_own" on features;
 
 create policy "features_select_own" on features for select to authenticated
   using (
@@ -76,15 +87,6 @@ create policy "features_delete_own" on features for delete to authenticated
       where w.id = features.workspace_id and w.created_by = auth.uid()
     )
   );
-
-drop policy if exists "prd_select_anon" on prd_documents;
-drop policy if exists "prd_insert_anon" on prd_documents;
-drop policy if exists "prd_update_anon" on prd_documents;
-drop policy if exists "prd_delete_anon" on prd_documents;
-drop policy if exists "prd_select_own" on prd_documents;
-drop policy if exists "prd_insert_own" on prd_documents;
-drop policy if exists "prd_update_own" on prd_documents;
-drop policy if exists "prd_delete_own" on prd_documents;
 
 create policy "prd_select_own" on prd_documents for select to authenticated
   using (
@@ -129,15 +131,6 @@ create policy "prd_delete_own" on prd_documents for delete to authenticated
     )
   );
 
-drop policy if exists "feature_messages_select_anon" on feature_messages;
-drop policy if exists "feature_messages_insert_anon" on feature_messages;
-drop policy if exists "feature_messages_update_anon" on feature_messages;
-drop policy if exists "feature_messages_delete_anon" on feature_messages;
-drop policy if exists "feature_messages_select_own" on feature_messages;
-drop policy if exists "feature_messages_insert_own" on feature_messages;
-drop policy if exists "feature_messages_update_own" on feature_messages;
-drop policy if exists "feature_messages_delete_own" on feature_messages;
-
 create policy "feature_messages_select_own" on feature_messages for select to authenticated
   using (
     exists (
@@ -180,15 +173,6 @@ create policy "feature_messages_delete_own" on feature_messages for delete to au
       where f.id = feature_messages.feature_id and w.created_by = auth.uid()
     )
   );
-
-drop policy if exists "feature_artifacts_select_anon" on feature_artifacts;
-drop policy if exists "feature_artifacts_insert_anon" on feature_artifacts;
-drop policy if exists "feature_artifacts_update_anon" on feature_artifacts;
-drop policy if exists "feature_artifacts_delete_anon" on feature_artifacts;
-drop policy if exists "feature_artifacts_select_own" on feature_artifacts;
-drop policy if exists "feature_artifacts_insert_own" on feature_artifacts;
-drop policy if exists "feature_artifacts_update_own" on feature_artifacts;
-drop policy if exists "feature_artifacts_delete_own" on feature_artifacts;
 
 create policy "feature_artifacts_select_own" on feature_artifacts for select to authenticated
   using (

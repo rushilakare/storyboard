@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { requireUser } from '@/lib/auth/require-user';
 import { embedMessageAsync } from '@/lib/embeddings';
 import { NextResponse, NextRequest } from 'next/server';
 
@@ -6,6 +6,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id: featureId } = await params;
   const cursor = request.nextUrl.searchParams.get('cursor');
   const limit = parseInt(
@@ -13,7 +16,7 @@ export async function GET(
     10,
   );
 
-  let query = supabase
+  let query = auth.supabase
     .from('feature_messages')
     .select('id, feature_id, role, content, sequence_num, agent_type, token_count, metadata, created_at')
     .eq('feature_id', featureId)
@@ -37,6 +40,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id: featureId } = await params;
   const body = await request.json();
   const { role, content, agent_type, metadata } = body;
@@ -48,7 +54,7 @@ export async function POST(
     );
   }
 
-  const { data: maxRow } = await supabase
+  const { data: maxRow } = await auth.supabase
     .from('feature_messages')
     .select('sequence_num')
     .eq('feature_id', featureId)
@@ -59,7 +65,7 @@ export async function POST(
   const nextSeq = (maxRow?.sequence_num ?? 0) + 1;
   const tokenCount = Math.ceil(content.length / 4);
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.supabase
     .from('feature_messages')
     .insert({
       feature_id: featureId,
@@ -77,7 +83,7 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  embedMessageAsync(data.id, content).catch(() => {});
+  embedMessageAsync(auth.supabase, data.id, content).catch(() => {});
 
   return NextResponse.json(data, { status: 201 });
 }

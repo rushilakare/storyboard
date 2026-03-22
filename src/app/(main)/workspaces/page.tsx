@@ -132,8 +132,9 @@ export default function WorkspacesPage() {
         <div className={styles.emptyState} role="alert">
           Could not load workspaces: {loadError}
           <div style={{ marginTop: '0.75rem', opacity: 0.85, fontSize: '0.9rem' }}>
-            If you use Supabase, run <code>supabase/schema.sql</code> then{' '}
-            <code>supabase/rls-policies.sql</code> in the SQL Editor (RLS often causes 500s with the anon key).
+            Ensure you are signed in. In Supabase SQL Editor run{' '}
+            <code>supabase/schema.sql</code>, then <code>supabase/migration-auth-iam.sql</code> (existing DBs) or{' '}
+            <code>supabase/rls-policies.sql</code> (new DBs with <code>created_by</code> already in schema).
           </div>
         </div>
       )}

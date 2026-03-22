@@ -1,6 +1,6 @@
 import { embed } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { supabase } from './supabase';
+import type { AppSupabase } from '@/lib/artifact-persistence';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMS = 1536;
@@ -14,12 +14,13 @@ export async function computeEmbedding(text: string): Promise<number[]> {
 }
 
 export async function embedMessageAsync(
+  sb: AppSupabase,
   messageId: string,
   content: string,
 ): Promise<void> {
   try {
     const vector = await computeEmbedding(content);
-    const { data: row } = await supabase
+    const { data: row } = await sb
       .from('feature_messages')
       .select('metadata')
       .eq('id', messageId)
@@ -30,7 +31,7 @@ export async function embedMessageAsync(
         ? (row.metadata as Record<string, unknown>)
         : {};
 
-    await supabase
+    await sb
       .from('feature_messages')
       .update({
         embedding: `[${vector.join(',')}]`,

@@ -4,12 +4,16 @@ import {
   getLatestCompletedPrdRow,
   replaceLatestCompletedPrdBody,
   upsertOpenPrdDraftBody,
+  type AppSupabase,
 } from '@/lib/artifact-persistence';
-import { supabase } from '@/lib/supabase';
+import { requireUser } from '@/lib/auth/require-user';
 import { NextResponse } from 'next/server';
 
-async function legacyPrdContent(featureId: string): Promise<string | null> {
-  const { data } = await supabase
+async function legacyPrdContent(
+  sb: AppSupabase,
+  featureId: string,
+): Promise<string | null> {
+  const { data } = await sb
     .from('prd_documents')
     .select('content')
     .eq('feature_id', featureId)
@@ -21,9 +25,13 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: featureId } = await params;
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
 
-  const row = await getLatestCompletedPrdRow(featureId);
+  const { id: featureId } = await params;
+  const sb = auth.supabase;
+
+  const row = await getLatestCompletedPrdRow(sb, featureId);
   if (row) {
     return NextResponse.json({
       id: row.id,
@@ -35,9 +43,9 @@ export async function GET(
     });
   }
 
-  const legacy = await legacyPrdContent(featureId);
+  const legacy = await legacyPrdContent(sb, featureId);
   if (legacy !== null && legacy.length > 0) {
-    const { data: doc } = await supabase
+    const { data: doc } = await sb
       .from('prd_documents')
       .select('*')
       .eq('feature_id', featureId)
@@ -55,7 +63,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id: featureId } = await params;
+  const sb = auth.supabase;
   let body: { content?: string; beginDraft?: boolean };
   try {
     body = await request.json();
@@ -64,7 +76,7 @@ export async function POST(
   }
 
   if (body.beginDraft === true) {
-    const result = await beginPrdDraftSession(featureId);
+    const result = await beginPrdDraftSession(sb, featureId);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
@@ -82,7 +94,7 @@ export async function POST(
     );
   }
 
-  const result = await upsertOpenPrdDraftBody(featureId, content);
+  const result = await upsertOpenPrdDraftBody(sb, featureId, content);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
@@ -94,7 +106,11 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id: featureId } = await params;
+  const sb = auth.supabase;
   let body: { content?: string; finalize?: boolean; replaceLatest?: boolean };
   try {
     body = await request.json();
@@ -108,7 +124,7 @@ export async function PUT(
   }
 
   if (body.replaceLatest === true) {
-    const result = await replaceLatestCompletedPrdBody(featureId, content);
+    const result = await replaceLatestCompletedPrdBody(sb, featureId, content);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
@@ -116,7 +132,7 @@ export async function PUT(
   }
 
   if (body.finalize === true) {
-    const result = await finalizeOpenPrdDraft(featureId, content);
+    const result = await finalizeOpenPrdDraft(sb, featureId, content);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
@@ -130,7 +146,7 @@ export async function PUT(
     });
   }
 
-  const result = await upsertOpenPrdDraftBody(featureId, content);
+  const result = await upsertOpenPrdDraftBody(sb, featureId, content);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }

@@ -1,14 +1,16 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import Sidebar from "@/components/Sidebar";
-import "./globals.css";
-import styles from "./layout.module.css";
+import type { Metadata } from 'next';
+import { Inter, Geist } from 'next/font/google';
+import './globals.css';
+import { cn } from "@/lib/utils";
 
-const inter = Inter({ subsets: ["latin"] });
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
+const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Rushi PM Tool",
-  description: "A minimal, linear-inspired PM application with multi-agent intelligence.",
+  title: 'Rushi PM Tool',
+  description:
+    'A minimal, linear-inspired PM application with multi-agent intelligence.',
 };
 
 export default function RootLayout({
@@ -17,13 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.className}>
-      <body suppressHydrationWarning>
-        <div className={styles.appContainer}>
-          <Sidebar />
-          <main className={styles.mainContent}>{children}</main>
-        </div>
-      </body>
+    <html lang="en" className={cn(inter.className, "font-sans", geist.variable)}>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

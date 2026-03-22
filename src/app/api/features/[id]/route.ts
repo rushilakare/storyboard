@@ -1,14 +1,17 @@
 import { getLatestCompletedPrdRow } from '@/lib/artifact-persistence';
-import { supabase } from '@/lib/supabase';
+import { requireUser } from '@/lib/auth/require-user';
 import { NextResponse } from 'next/server';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
 
-  const { data, error } = await supabase.from('features').select('*').eq('id', id).single();
+  const { data, error } = await auth.supabase.from('features').select('*').eq('id', id).single();
 
   if (error) {
     if (error.code === 'PGRST116') {
@@ -17,7 +20,7 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const artifact = await getLatestCompletedPrdRow(id);
+  const artifact = await getLatestCompletedPrdRow(auth.supabase, id);
   let prd_documents: Record<string, unknown> | null = null;
 
   if (artifact) {
@@ -30,7 +33,7 @@ export async function GET(
       version: artifact.version,
     };
   } else {
-    const { data: legacy } = await supabase
+    const { data: legacy } = await auth.supabase
       .from('prd_documents')
       .select('*')
       .eq('feature_id', id)
@@ -45,6 +48,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
   const body = await request.json();
   const { name, purpose, requirements, status, priority, inference_clarifications } = body;
@@ -57,7 +63,7 @@ export async function PATCH(
   if (priority !== undefined) update.priority = priority;
   if (inference_clarifications !== undefined) update.inference_clarifications = inference_clarifications;
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.supabase
     .from('features')
     .update(update)
     .eq('id', id)
@@ -75,9 +81,12 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
 
-  const { error } = await supabase.from('features').delete().eq('id', id);
+  const { error } = await auth.supabase.from('features').delete().eq('id', id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
