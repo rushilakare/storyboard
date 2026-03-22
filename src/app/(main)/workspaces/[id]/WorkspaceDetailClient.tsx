@@ -567,6 +567,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         const saved = await res.json();
         newId = saved.id;
         setFeatureId(saved.id);
+        // Block hydration from overwriting local chat while URL updates (race before infer finishes).
+        streamingRef.current = true;
         router.replace(`/workspaces/${workspaceId}?feature=${saved.id}`);
       }
     } catch (e) {
@@ -589,7 +591,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       status: "pending",
     });
 
-    streamingRef.current = true;
+    if (!newId) {
+      streamingRef.current = true;
+    }
     setIsLoading(true);
     let narrativeForPersistence = "";
     let parsedQuestions: ClarifyingQuestion[] = [];
@@ -623,6 +627,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      streamingRef.current = false;
+      setIsLoading(false);
     }
 
     if (newId && narrativeForPersistence) {
@@ -630,9 +637,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         clarifying_questions: parsedQuestions,
       });
     }
-
-    setIsLoading(false);
-    streamingRef.current = false;
   };
 
   // ── User Revision ─────────────────────────────────────────────────
