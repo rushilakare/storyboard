@@ -2,7 +2,7 @@
 
 ## 2026-03-22
 
-- **Git remote `origin`:** `git@github.com:rushilakare/storyboard.git` (SSH). Earlier HTTPS URL hit 403 when credentials were for a different GitHub user; use SSH with a key added to the `rushilakare` account and run `git push -u origin main` from a machine where `ssh -T git@github.com` succeeds.
+- **Git remote + GitHub auth:** `origin` is `https://github.com/rushilakare/storyboard.git`. GitHub CLI active account switched to **`rushilakare`** (`gh auth switch --user rushilakare`); `gh auth setup-git` wires `credential.https://github.com.helper` to `gh auth git-credential` so HTTPS Git uses that account. `main` pushed and tracks `origin/main`. (SSH had no local key in `~/.ssh`; restore `git@github.com:rushilakare/storyboard.git` after adding a key to GitHub if you prefer SSH.)
 
 - **Git repository initialized:** Ran `git init` on `main`, staged the project (existing `.gitignore` keeps `.env*` and `.vercel` out of commits), and created root commit `c2be2e8` (“Initial commit: Next.js PM tool with workspaces, features, and agents”). No remote yet—add with `git remote add origin <url>` then `git push -u origin main`.
 
