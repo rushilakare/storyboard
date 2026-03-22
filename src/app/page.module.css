@@ -1,0 +1,169 @@
+.dashboard {
+  padding: 32px 48px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+.primaryButton {
+  background-color: var(--text-primary);
+  color: var(--bg-color);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.primaryButton:hover {
+  opacity: 0.9;
+}
+
+.metricsContainer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-bottom: 48px;
+}
+
+.metricCard {
+  border: 1px solid var(--border-color);
+  padding: 20px;
+  border-radius: 6px;
+  background-color: var(--bg-surface);
+}
+
+.metricLabel {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.metricValue {
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.section {
+  margin-top: 32px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+}
+
+.tableContainer {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--bg-surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background-color: var(--bg-surface-hover);
+}
+
+.id {
+  color: var(--text-secondary) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.date {
+  color: var(--text-secondary) !important;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.statusBadge::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.statusBadge.inProgress::before {
+  color: var(--accent-color);
+}
+
+.statusBadge.review::before {
+  color: #f2c94c;
+}
+
+.priorityHigh {
+  color: var(--danger-color);
+}
+
+.priorityMedium {
+  color: #f2994a;
+}
+
+.priorityLow {
+  color: var(--text-secondary);
+}
+
+.draft::before {
+  color: var(--text-muted);
+}
+
+.done::before {
+  color: #27ae60;
+}
+
+.featureLink {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.featureLink:hover {
+  text-decoration: underline;
+}

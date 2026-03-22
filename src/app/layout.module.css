@@ -1,0 +1,12 @@
+.appContainer {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Important for flex children to allow scrolling/shrinking */
+}

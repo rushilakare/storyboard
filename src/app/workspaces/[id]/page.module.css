@@ -1,0 +1,266 @@
+.container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chatPane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  transition: flex 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 100%;
+  background-color: var(--bg-color);
+}
+
+.editorPane {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+}
+
+.splitActive .chatPane {
+  flex: 0 0 35%;
+  border-right: 1px solid var(--border-color);
+}
+
+.splitActive .editorPane {
+  width: 65%;
+  opacity: 1;
+  overflow-y: auto;
+}
+
+.paneHeader {
+  height: 56px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  flex-shrink: 0;
+  justify-content: space-between;
+}
+
+.paneTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.chatWrapperOuter {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.streamError {
+  margin: 12px 48px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
+}
+
+.editorContent {
+  flex: 1;
+  padding: 32px 48px;
+  overflow-y: auto;
+}
+
+.mockDocumentEditor {
+  width: 100%;
+  min-height: calc(100vh - 120px);
+  border: none;
+  background-color: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-inter);
+  font-size: 15px;
+  line-height: 1.7;
+  resize: none;
+  outline: none;
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.mockBtn {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mockBtn:hover {
+  background-color: var(--bg-surface-hover);
+}
+
+.listPage {
+  padding: 32px 48px;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.listHeader {
+  margin-bottom: 32px;
+}
+
+.listHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.listTitle {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+}
+
+.listDescription {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.listSectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.listPrimaryBtn {
+  background-color: var(--text-primary);
+  color: var(--bg-color);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.listPrimaryBtn:hover {
+  opacity: 0.9;
+}
+
+.backLink,
+.backLinkInline {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.backLink:hover,
+.backLinkInline:hover {
+  color: var(--text-primary);
+}
+
+.backLinkInline {
+  flex-shrink: 0;
+}
+
+.detailHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.detailHeaderLeft .paneTitle {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listError {
+  padding: 12px 16px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.listEmpty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+}
+
+.featureList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.featureRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-surface);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.featureRow:hover {
+  border-color: var(--border-highlight);
+  background-color: var(--bg-surface-hover);
+}
+
+.featureRowName {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.featureRowMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+  flex-shrink: 0;
+}

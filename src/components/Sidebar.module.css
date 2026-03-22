@@ -1,0 +1,69 @@
+.sidebar {
+  width: 240px;
+  background-color: var(--bg-color); /* linear uses same bg as main or slightly different */
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+}
+
+.logo {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 32px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+}
+
+.logoIcon {
+  width: 14px;
+  height: 14px;
+  background-color: var(--accent-color);
+  border-radius: 3px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.1s;
+  text-decoration: none;
+  margin-bottom: 2px;
+}
+
+.navItem:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background-color: var(--bg-surface-active);
+  color: var(--text-primary);
+}

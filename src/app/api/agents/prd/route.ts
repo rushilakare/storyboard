@@ -1,0 +1,123 @@
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import {
+  PRD_OUTPUT_REQUIREMENTS,
+  PRD_PRODUCT_CONTEXT,
+  PRD_ROLE_INTRO,
+} from '@/lib/agent-prompts';
+import { assembleFeatureContext } from '@/lib/context';
+import { finalizeOpenPrdDraft } from '@/lib/artifact-persistence';
+import { patchFeatureStatus } from '@/lib/prd-persistence';
+
+export const maxDuration = 60;
+
+const CONTINUATION_INSTRUCTION = `
+### Interrupted draft (continue mode)
+The following PRD was partially generated before being interrupted. Continue writing from exactly where it left off.
+Do NOT repeat any paragraphs or sections already present. Pick up seamlessly after the last character of the partial draft.
+
+--- PARTIAL DRAFT START ---
+`;
+
+const CONTINUATION_SUFFIX = `
+--- PARTIAL DRAFT END ---
+`;
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { featureId, name, purpose, requirements, revision, continue: continueDraft } = body as {
+      featureId?: string;
+      name?: string;
+      purpose?: string;
+      requirements?: string;
+      revision?: string;
+      continue?: string;
+    };
+
+    const continuationPrefix =
+      typeof continueDraft === 'string' && continueDraft.length > 0 ? continueDraft : '';
+
+    if (featureId) {
+      const context = await assembleFeatureContext(featureId, 'prd', {
+        userQuery: revision || undefined,
+        enableRetrieval: !!revision,
+        omitSavedPrdDocument: continuationPrefix.length > 0,
+      });
+
+      let systemPrompt = context.systemPrompt;
+      if (continuationPrefix) {
+        systemPrompt = [
+          context.systemPrompt,
+          '',
+          CONTINUATION_INSTRUCTION,
+          continuationPrefix,
+          CONTINUATION_SUFFIX,
+        ].join('\n');
+      }
+
+      const { textStream } = streamText({
+        model: openai('gpt-5.4-2026-03-05'),
+        system: systemPrompt,
+        messages: context.messages,
+        onFinish: async ({ text }) => {
+          try {
+            const merged =
+              continuationPrefix.length > 0 ? `${continuationPrefix}${text}` : text;
+            if (merged.length > 0) {
+              const saved = await finalizeOpenPrdDraft(featureId, merged);
+              if (saved.ok) {
+                await patchFeatureStatus(featureId, 'done');
+              } else {
+                console.error('[prd agent] onFinish finalize failed', saved.error);
+              }
+            }
+          } catch (e) {
+            console.error('[prd agent] onFinish error', e);
+          }
+        },
+      });
+
+      return new Response(textStream, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+
+    let prompt = `${PRD_ROLE_INTRO} I need you to write a comprehensive PRD/Epic and then break it down into detailed user stories in Markdown format.
+
+### The Requirement
+Feature Name: ${name || 'N/A'}
+Core Problem to Solve: ${purpose || 'Not specified'}
+Key Capabilities/Requirements: ${requirements || 'None'}
+
+${revision ? `### Additional Context/Revision\nThe user provided this update/feedback: "${revision}"` : ''}
+
+${PRD_PRODUCT_CONTEXT}
+
+${PRD_OUTPUT_REQUIREMENTS}`;
+
+    if (continuationPrefix) {
+      prompt = [
+        prompt,
+        '',
+        CONTINUATION_INSTRUCTION,
+        continuationPrefix,
+        CONTINUATION_SUFFIX,
+      ].join('\n');
+    }
+
+    const { textStream } = streamText({
+      model: openai('gpt-5.4-2026-03-05'),
+      prompt,
+    });
+
+    return new Response(textStream, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to generate PRD' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+}
