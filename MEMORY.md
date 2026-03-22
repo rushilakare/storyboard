@@ -2,6 +2,8 @@
 
 ## 2026-03-22
 
+- **Vercel production deploy:** Linked project **`rushi-pm-tool`** under team **`rushi-projects`** (GitHub `rushilakare/storyboard` connected). Set env vars in Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Production + Development), `OPENAI_API_KEY` (Production sensitive; Development non-sensitive—Vercel blocks sensitive → Development). Production URL: **https://rushi-pm-tool.vercel.app**. **Supabase client:** replaced eager `getSupabaseClient()` at module load with a **lazy `Proxy`** so `next build` on Vercel succeeds before runtime env is applied; real client still created on first use. Preview (PR) deployments: add the same three variables for **Preview** in the Vercel dashboard if CLI branch targeting fails. Files: `src/lib/supabase.ts`.
+
 - **Git remote + GitHub auth:** `origin` is `https://github.com/rushilakare/storyboard.git`. GitHub CLI active account switched to **`rushilakare`** (`gh auth switch --user rushilakare`); `gh auth setup-git` wires `credential.https://github.com.helper` to `gh auth git-credential` so HTTPS Git uses that account. `main` pushed and tracks `origin/main`. (SSH had no local key in `~/.ssh`; restore `git@github.com:rushilakare/storyboard.git` after adding a key to GitHub if you prefer SSH.)
 
 - **Git repository initialized:** Ran `git init` on `main`, staged the project (existing `.gitignore` keeps `.env*` and `.vercel` out of commits), and created root commit `c2be2e8` (“Initial commit: Next.js PM tool with workspaces, features, and agents”). No remote yet—add with `git remote add origin <url>` then `git push -u origin main`.
