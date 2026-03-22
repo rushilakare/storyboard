@@ -2,7 +2,7 @@
 
 ## 2026-03-22
 
-- **Git remote `origin`:** Points to `https://github.com/rushilakare/storyboard.git`. Initial `git push -u origin main` failed with HTTP 403 because the machine’s stored GitHub credentials are for a different user (`rushikeshlakaremavq`); push once signed in as `rushilakare` (PAT or SSH) or update the macOS keychain/credential helper entry for `github.com`.
+- **Git remote `origin`:** `git@github.com:rushilakare/storyboard.git` (SSH). Earlier HTTPS URL hit 403 when credentials were for a different GitHub user; use SSH with a key added to the `rushilakare` account and run `git push -u origin main` from a machine where `ssh -T git@github.com` succeeds.
 
 - **Git repository initialized:** Ran `git init` on `main`, staged the project (existing `.gitignore` keeps `.env*` and `.vercel` out of commits), and created root commit `c2be2e8` (“Initial commit: Next.js PM tool with workspaces, features, and agents”). No remote yet—add with `git remote add origin <url>` then `git push -u origin main`.
 
