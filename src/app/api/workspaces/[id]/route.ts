@@ -1,13 +1,16 @@
-import { supabase } from '@/lib/supabase';
+import { requireUser } from '@/lib/auth/require-user';
 import { NextResponse } from 'next/server';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.supabase
     .from('workspaces')
     .select('*, features(*)')
     .eq('id', id)
@@ -27,6 +30,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
   const body = await request.json();
   const { name, description } = body;
@@ -35,7 +41,7 @@ export async function PATCH(
   if (name !== undefined) update.name = name;
   if (description !== undefined) update.description = description;
 
-  const { data, error } = await supabase
+  const { data, error } = await auth.supabase
     .from('workspaces')
     .update(update)
     .eq('id', id)
@@ -53,9 +59,12 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
 
-  const { error } = await supabase
+  const { error } = await auth.supabase
     .from('workspaces')
     .delete()
     .eq('id', id);

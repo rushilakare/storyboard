@@ -67,3 +67,36 @@
   background-color: var(--bg-surface-active);
   color: var(--text-primary);
 }
+
+.footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.userEmail {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signOut {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.signOut:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+}

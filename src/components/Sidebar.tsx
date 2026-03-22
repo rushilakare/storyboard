@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import styles from './Sidebar.module.css';
 
 interface RecentFeature {
@@ -14,6 +15,20 @@ interface RecentFeature {
 export default function Sidebar() {
   const pathname = usePathname();
   const [features, setFeatures] = useState<RecentFeature[]>([]);
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? null);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setEmail(session?.user?.email ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -68,6 +83,19 @@ export default function Sidebar() {
             </Link>
           ))
         )}
+      </div>
+
+      <div className={styles.footer}>
+        {email ? (
+          <div className={styles.userEmail} title={email}>
+            {email}
+          </div>
+        ) : null}
+        <form action="/auth/sign-out" method="post">
+          <button type="submit" className={styles.signOut}>
+            Sign out
+          </button>
+        </form>
       </div>
     </aside>
   );

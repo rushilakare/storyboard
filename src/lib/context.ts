@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import type { AppSupabase } from './artifact-persistence';
 import { resolvePrdContentForFeature } from './artifact-persistence';
 import { computeEmbedding } from './embeddings';
 import {
@@ -135,6 +135,7 @@ function buildPrdSystem(
 }
 
 export async function assembleFeatureContext(
+  sb: AppSupabase,
   featureId: string,
   agentKind: 'inference' | 'competitor' | 'prd',
   options?: AssembleOptions,
@@ -142,7 +143,7 @@ export async function assembleFeatureContext(
   const maxMessages = options?.maxMessages ?? 24;
   const maxChars = options?.maxChars ?? (agentKind === 'prd' ? 12000 : 8000);
 
-  const { data: feature, error: featureError } = await supabase
+  const { data: feature, error: featureError } = await sb
     .from('features')
     .select('*')
     .eq('id', featureId)
@@ -152,10 +153,10 @@ export async function assembleFeatureContext(
 
   const savedPrdContent =
     !options?.omitSavedPrdDocument && agentKind === 'prd'
-      ? (await resolvePrdContentForFeature(featureId)).trim()
+      ? (await resolvePrdContentForFeature(sb, featureId)).trim()
       : '';
 
-  const { data: dbMessages } = await supabase
+  const { data: dbMessages } = await sb
     .from('feature_messages')
     .select('role, content, agent_type, sequence_num, token_count')
     .eq('feature_id', featureId)
@@ -212,6 +213,7 @@ export async function assembleFeatureContext(
   if (options?.enableRetrieval && options.userQuery) {
     try {
       const chunks = await retrieveSemanticContext(
+        sb,
         feature.workspace_id,
         options.userQuery,
         5,
@@ -272,6 +274,7 @@ export async function assembleFeatureContext(
 }
 
 export async function retrieveSemanticContext(
+  sb: AppSupabase,
   workspaceId: string,
   queryText: string,
   topK = 5,
@@ -291,7 +294,7 @@ export async function retrieveSemanticContext(
   };
   if (featureId) rpcParams.p_feature_id = featureId;
 
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await sb.rpc(
     'match_feature_messages',
     rpcParams,
   );
@@ -305,6 +308,7 @@ export async function retrieveSemanticContext(
 }
 
 export async function searchFeatureMessages(
+  sb: AppSupabase,
   workspaceId: string,
   query: string,
   topK = 20,
@@ -322,7 +326,7 @@ export async function searchFeatureMessages(
   };
   if (featureId) rpcParams.p_feature_id = featureId;
 
-  const { data, error } = await supabase.rpc(
+  const { data, error } = await sb.rpc(
     'search_feature_messages',
     rpcParams,
   );
@@ -339,14 +343,15 @@ export async function searchFeatureMessages(
  * Hybrid search: combine FTS + vector results via reciprocal rank fusion.
  */
 export async function hybridSearch(
+  sb: AppSupabase,
   workspaceId: string,
   query: string,
   topK = 10,
   featureId?: string,
 ) {
   const [ftsResults, vectorResults] = await Promise.allSettled([
-    searchFeatureMessages(workspaceId, query, topK * 2, featureId),
-    retrieveSemanticContext(workspaceId, query, topK * 2, featureId),
+    searchFeatureMessages(sb, workspaceId, query, topK * 2, featureId),
+    retrieveSemanticContext(sb, workspaceId, query, topK * 2, featureId),
   ]);
 
   const k = 60; // RRF constant

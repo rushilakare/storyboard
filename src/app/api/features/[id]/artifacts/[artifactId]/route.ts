@@ -1,11 +1,14 @@
 import { setArtifactSourceMessage } from '@/lib/artifact-persistence';
-import { supabase } from '@/lib/supabase';
+import { requireUser } from '@/lib/auth/require-user';
 import { NextResponse } from 'next/server';
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; artifactId: string }> },
 ) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   const { id: featureId, artifactId } = await params;
   let body: { source_message_id?: string };
   try {
@@ -22,7 +25,7 @@ export async function PATCH(
     );
   }
 
-  const { data: row, error: verifyErr } = await supabase
+  const { data: row, error: verifyErr } = await auth.supabase
     .from('feature_artifacts')
     .select('id')
     .eq('id', artifactId)
@@ -33,7 +36,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Artifact not found' }, { status: 404 });
   }
 
-  const result = await setArtifactSourceMessage(artifactId, sourceMessageId);
+  const result = await setArtifactSourceMessage(
+    auth.supabase,
+    artifactId,
+    sourceMessageId,
+  );
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }

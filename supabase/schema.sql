@@ -1,6 +1,6 @@
 -- Supabase Schema for Rushi PM Tool
--- Run this in Supabase SQL Editor (Dashboard → SQL Editor → New Query)
--- After this file, run rls-policies.sql so Next.js API routes (anon key) can read/write.
+-- Run in SQL Editor. Then run rls-policies.sql (IAM: authenticated users + workspace created_by).
+-- Existing DBs that already have `workspaces` without `created_by`: run migration-auth-iam.sql first.
 
 -- Enable UUID generation
 create extension if not exists "uuid-ossp";
@@ -10,6 +10,7 @@ create table if not exists workspaces (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
   description text,
+  created_by uuid references auth.users (id) on delete cascade,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -184,9 +185,6 @@ begin
 end;
 $$;
 
--- Seed data: one default workspace with sample features
-insert into workspaces (name, description) values
-  ('Global Team', 'Main product workspace for the global team'),
-  ('Mobile App', 'iOS and Android mobile application'),
-  ('Design System', 'Shared component library and design tokens')
-on conflict do nothing;
+-- Workspaces are created via the app after sign-in (created_by = auth user).
+-- Optional demo seed (no owner — invisible under IAM RLS until you set created_by):
+-- insert into workspaces (name, description) values ('Demo', 'then set created_by');

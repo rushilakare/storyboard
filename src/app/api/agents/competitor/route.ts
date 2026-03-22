@@ -1,17 +1,21 @@
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { COMPETITOR_OUTPUT_DISCIPLINE } from '@/lib/agent-prompts';
+import { requireUser } from '@/lib/auth/require-user';
 import { assembleFeatureContext } from '@/lib/context';
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await request.json();
     const { featureId, name, purpose, requirements, revision } = body;
 
     if (featureId) {
-      const context = await assembleFeatureContext(featureId, 'competitor', {
+      const context = await assembleFeatureContext(auth.supabase, featureId, 'competitor', {
         userQuery: revision || undefined,
         enableRetrieval: !!revision,
       });
