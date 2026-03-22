@@ -6,15 +6,8 @@ import { usePathname } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import styles from './Sidebar.module.css';
 
-interface RecentFeature {
-  id: string;
-  name: string;
-  workspace_id: string;
-}
-
 export default function Sidebar() {
   const pathname = usePathname();
-  const [features, setFeatures] = useState<RecentFeature[]>([]);
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,19 +21,6 @@ export default function Sidebar() {
       setEmail(session?.user?.email ?? null);
     });
     return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/features?limit=5');
-        const data = await res.json();
-        if (Array.isArray(data)) setFeatures(data);
-      } catch {
-        // silent fail for sidebar
-      }
-    }
-    load();
   }, []);
 
   return (
@@ -64,25 +44,12 @@ export default function Sidebar() {
         >
           Workspaces
         </Link>
-      </div>
-
-      <div className={styles.section}>
-        <div className={styles.sectionTitle}>Recent Features</div>
-        {features.length === 0 ? (
-          <div className={styles.navItem} style={{ opacity: 0.5 }}>
-            No features yet
-          </div>
-        ) : (
-          features.map(f => (
-            <Link
-              key={f.id}
-              href={`/workspaces/${f.workspace_id}?feature=${f.id}`}
-              className={styles.navItem}
-            >
-              {f.name}
-            </Link>
-          ))
-        )}
+        <Link
+          href="/artifacts"
+          className={`${styles.navItem} ${pathname === '/artifacts' || pathname.startsWith('/artifacts/') ? styles.navItemActive : ''}`}
+        >
+          Artifacts
+        </Link>
       </div>
 
       <div className={styles.footer}>

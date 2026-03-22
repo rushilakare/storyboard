@@ -7,6 +7,7 @@ import styles from "./page.module.css";
 import NewFeatureModal from "@/components/NewFeatureModal";
 import ChatInterface, { Message } from "@/components/ChatInterface";
 import PrdRecoveryBanner from "@/components/PrdRecoveryBanner";
+import PrdDocumentEditor from "@/components/PrdDocumentEditor";
 import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferenceQuestions";
 import {
   formatClarificationSummary,
@@ -15,10 +16,36 @@ import {
   splitInferenceDisplayBuffer,
 } from "@/lib/postInferenceQuestions";
 
+/** Chat shows a stub; full text lives in the document panel and in persisted messages. */
+const INFERENCE_CHAT_STUB =
+  "Feature inference is ready. Use “View feature inference” to read it in the document panel, then approve to continue.";
+const COMPETITOR_CHAT_STUB =
+  "Competitor analysis is ready. Use “View competitor analysis” in the document panel, then approve to generate the PRD.";
+
+type DocumentPanelKind = "inference" | "competitor" | "prd";
+
+function narrativeFromPersistedInference(content: string): string {
+  if (content.includes("<<<CLARIFYING_QUESTIONS_JSON>>>")) {
+    return parseInferenceStreamComplete(content).narrative;
+  }
+  return content;
+}
+
+function isLikelyFullInferenceBody(content: string): boolean {
+  if (content === INFERENCE_CHAT_STUB) return false;
+  return content.length > 160 || content.includes("<<<CLARIFYING_QUESTIONS_JSON>>>");
+}
+
+function isLikelyFullCompetitorBody(content: string): boolean {
+  if (content === COMPETITOR_CHAT_STUB) return false;
+  return content.length > 160;
+}
+
 async function consumeInferenceStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   agentMsgId: string,
   setMessages: Dispatch<SetStateAction<Message[]>>,
+  setInferenceDoc: Dispatch<SetStateAction<string>>,
 ): Promise<{ narrative: string; questions: ClarifyingQuestion[] }> {
   const decoder = new TextDecoder();
   let agentContent = "";
@@ -27,17 +54,21 @@ async function consumeInferenceStream(
     if (done) break;
     agentContent += decoder.decode(value, { stream: true });
     const { display } = splitInferenceDisplayBuffer(agentContent);
+    setInferenceDoc(display);
     setMessages((prev) =>
-      prev.map((m) => (m.id === agentMsgId ? { ...m, content: display } : m)),
+      prev.map((m) =>
+        m.id === agentMsgId ? { ...m, content: "Generating feature inference…" } : m,
+      ),
     );
   }
   const { narrative, questions } = parseInferenceStreamComplete(agentContent);
+  setInferenceDoc(narrative);
   setMessages((prev) =>
     prev.map((m) =>
       m.id === agentMsgId
         ? {
             ...m,
-            content: narrative,
+            content: INFERENCE_CHAT_STUB,
             clarifyingQuestions: questions,
             status: "needs_review" as const,
           }
@@ -45,6 +76,35 @@ async function consumeInferenceStream(
     ),
   );
   return { narrative, questions };
+}
+
+async function streamCompetitorToDocument(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  agentMsgId: string,
+  setMessages: Dispatch<SetStateAction<Message[]>>,
+  setCompetitorDoc: Dispatch<SetStateAction<string>>,
+): Promise<string> {
+  const decoder = new TextDecoder();
+  let full = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    full += decoder.decode(value, { stream: true });
+    setCompetitorDoc(full);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === agentMsgId ? { ...m, content: "Generating competitor analysis…" } : m,
+      ),
+    );
+  }
+  setMessages((prev) =>
+    prev.map((m) =>
+      m.id === agentMsgId
+        ? { ...m, content: COMPETITOR_CHAT_STUB, status: "needs_review" as const }
+        : m,
+    ),
+  );
+  return full;
 }
 
 interface WorkspaceRow {
@@ -102,16 +162,55 @@ function statusLabel(status: string) {
   }
 }
 
+function listTimeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function workspaceArtifactKindLabel(kind: string) {
+  switch (kind) {
+    case "prd":
+      return "PRD";
+    case "inference":
+      return "Inference";
+    case "competitor":
+      return "Competitors";
+    default:
+      return kind;
+  }
+}
+
+interface WorkspaceArtifactRow {
+  id: string;
+  feature_id: string;
+  kind: string;
+  title: string | null;
+  version: number;
+  updated_at: string;
+  created_at: string;
+  feature_name: string | null;
+  workspace_id: string;
+}
+
 export default function WorkspaceDetailClient({ params }: { params: Promise<{ id: string }> }) {
   const { id: workspaceId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
   const featureParam = searchParams.get("feature");
+  const listViewArtifacts = searchParams.get("view") === "artifacts";
 
   const [workspace, setWorkspace] = useState<WorkspaceRow | null>(null);
   const [featuresList, setFeaturesList] = useState<FeatureRow[]>([]);
-  const [listLoading, setListLoading] = useState(!featureParam);
+  const [listLoading, setListLoading] = useState(!featureParam && !listViewArtifacts);
   const [listError, setListError] = useState<string | null>(null);
+  const [workspaceArtifacts, setWorkspaceArtifacts] = useState<WorkspaceArtifactRow[]>([]);
+  const [artifactsLoading, setArtifactsLoading] = useState(!featureParam && listViewArtifacts);
+  const [artifactsError, setArtifactsError] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSplitView, setIsSplitView] = useState(false);
@@ -124,6 +223,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     requirements: string;
   } | null>(null);
   const [prdDocument, setPrdDocument] = useState<string>("");
+  const [inferenceDocument, setInferenceDocument] = useState<string>("");
+  const [competitorDocument, setCompetitorDocument] = useState<string>("");
+  const [documentPanelKind, setDocumentPanelKind] = useState<DocumentPanelKind>("prd");
   const [featureId, setFeatureId] = useState<string | null>(null);
   const [savingPrd, setSavingPrd] = useState(false);
   const [savedPrd, setSavedPrd] = useState(false);
@@ -323,13 +425,45 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     };
   }, [workspaceId]);
 
-  // Load feature list (when no feature is selected)
+  // Load feature list or workspace artifacts (when no feature is selected)
   useEffect(() => {
     if (featureParam) {
       setListLoading(false);
+      setArtifactsLoading(false);
       return;
     }
+
     let cancelled = false;
+
+    if (listViewArtifacts) {
+      setListLoading(false);
+      setArtifactsLoading(true);
+      setArtifactsError(null);
+      (async () => {
+        try {
+          const res = await fetch(`/api/workspaces/${workspaceId}/artifacts`);
+          const data = await res.json();
+          if (cancelled) return;
+          if (!res.ok) {
+            setArtifactsError(
+              typeof data?.error === "string" ? data.error : "Failed to load artifacts",
+            );
+            setWorkspaceArtifacts([]);
+            return;
+          }
+          setWorkspaceArtifacts(Array.isArray(data) ? data : []);
+        } catch {
+          if (!cancelled) setArtifactsError("Network error loading artifacts.");
+        } finally {
+          if (!cancelled) setArtifactsLoading(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setArtifactsLoading(false);
     setListLoading(true);
     setListError(null);
     (async () => {
@@ -352,7 +486,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, featureParam]);
+  }, [workspaceId, featureParam, listViewArtifacts]);
 
   // Reset UI state when navigating back to list
   useEffect(() => {
@@ -361,6 +495,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setFeatureData(null);
     setFeatureId(null);
     setPrdDocument("");
+    setInferenceDocument("");
+    setCompetitorDocument("");
+    setDocumentPanelKind("prd");
     setFeatureStatus(null);
     setPrdRecoveryPromptOpen(false);
     setStreamError(null);
@@ -412,6 +549,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         setPrdDocument(prdText);
 
         if (data.status === "generating") {
+          setDocumentPanelKind("prd");
           setPrdRecoveryPromptOpen(true);
           setIsSplitView(true);
         } else {
@@ -419,7 +557,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         }
 
         if (Array.isArray(dbMsgs) && dbMsgs.length > 0) {
-          const uiMsgs: Message[] = dbMsgs.map((m: Record<string, unknown>) => {
+          const rawUiMsgs: Message[] = dbMsgs.map((m: Record<string, unknown>) => {
             const meta = m.metadata as Record<string, unknown> | undefined;
             let clarifyingQuestions: ClarifyingQuestion[] | undefined;
             const rawQ = meta?.clarifying_questions;
@@ -435,6 +573,23 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               clarifyingQuestions,
             };
           });
+
+          let extractedInference = "";
+          let extractedCompetitor = "";
+          const uiMsgs = rawUiMsgs.map((m) => {
+            if (m.role === "agent" && m.agentType === "inference" && isLikelyFullInferenceBody(m.content)) {
+              extractedInference = narrativeFromPersistedInference(m.content);
+              return { ...m, content: INFERENCE_CHAT_STUB };
+            }
+            if (m.role === "agent" && m.agentType === "competitor" && isLikelyFullCompetitorBody(m.content)) {
+              extractedCompetitor = m.content;
+              return { ...m, content: COMPETITOR_CHAT_STUB };
+            }
+            return m;
+          });
+
+          setInferenceDocument(extractedInference);
+          setCompetitorDocument(extractedCompetitor);
 
           // Mark last non-system agent message as needs_review when appropriate
           const lastAgentIdx = [...uiMsgs]
@@ -468,7 +623,26 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             openClarifyingModal(lastInf.id);
           }
           if (["review", "done"].includes(data.status) && prdText) {
+            setDocumentPanelKind("prd");
             setIsSplitView(true);
+          } else if (data.status === "draft") {
+            const hasInf = uiMsgs.some(
+              (m) =>
+                m.role === "agent" && m.agentType === "inference" && m.status === "needs_review",
+            );
+            if (hasInf) {
+              setDocumentPanelKind("inference");
+              setIsSplitView(true);
+            }
+          } else if (data.status === "in_progress") {
+            const hasComp = uiMsgs.some(
+              (m) =>
+                m.role === "agent" && m.agentType === "competitor" && m.status === "needs_review",
+            );
+            if (hasComp) {
+              setDocumentPanelKind("competitor");
+              setIsSplitView(true);
+            }
           }
         } else {
           // No persisted messages — show synthetic placeholder (backward compat)
@@ -583,11 +757,15 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     }
 
     const agentMsgId = Date.now().toString() + "-agent";
+    setInferenceDocument("");
+    setCompetitorDocument("");
+    setDocumentPanelKind("inference");
+    setIsSplitView(true);
     addMessage({
       id: agentMsgId,
       role: "agent",
       agentType: "inference",
-      content: "",
+      content: "Generating feature inference…",
       status: "pending",
     });
 
@@ -615,7 +793,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         );
       } else if (res.body) {
         const reader = res.body.getReader();
-        const { narrative, questions } = await consumeInferenceStream(reader, agentMsgId, setMessages);
+        const { narrative, questions } = await consumeInferenceStream(
+          reader,
+          agentMsgId,
+          setMessages,
+          setInferenceDocument,
+        );
         narrativeForPersistence = narrative;
         parsedQuestions = questions;
         if (questions.length > 0) {
@@ -664,11 +847,23 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const agentType = lastAgentMsg?.agentType || "inference";
 
     if (!isPrd) {
+      if (agentType === "inference") {
+        setDocumentPanelKind("inference");
+        setIsSplitView(true);
+        setInferenceDocument("");
+      } else if (agentType === "competitor") {
+        setDocumentPanelKind("competitor");
+        setIsSplitView(true);
+        setCompetitorDocument("");
+      }
       addMessage({
         id: agentMsgId,
         role: "agent",
         agentType: agentType,
-        content: "",
+        content:
+          agentType === "inference"
+            ? "Generating feature inference…"
+            : "Generating competitor analysis…",
         status: "pending",
       });
     }
@@ -678,6 +873,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     let agentContent = "";
     let inferenceQuestionsForMeta: ClarifyingQuestion[] = [];
     if (isPrd) {
+      setDocumentPanelKind("prd");
+      setIsSplitView(true);
       /* Revision returns a full replacement PRD, not an append — stream from empty prefix. */
       prdStreamingBufferRef.current = "";
       if (fid) await postBeginPrdDraft(fid);
@@ -707,7 +904,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       } else if (res.body) {
         const reader = res.body.getReader();
         if (agentType === "inference") {
-          const { narrative, questions } = await consumeInferenceStream(reader, agentMsgId, setMessages);
+          const { narrative, questions } = await consumeInferenceStream(
+            reader,
+            agentMsgId,
+            setMessages,
+            setInferenceDocument,
+          );
           agentContent = narrative;
           inferenceQuestionsForMeta = questions;
           if (questions.length > 0) {
@@ -717,17 +919,11 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             setPendingClarifyingQuestions([]);
           }
         } else {
-          const decoder = new TextDecoder();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            agentContent += decoder.decode(value, { stream: true });
-            setMessages((prev) =>
-              prev.map((m) => (m.id === agentMsgId ? { ...m, content: agentContent } : m)),
-            );
-          }
-          setMessages((prev) =>
-            prev.map((m) => (m.id === agentMsgId ? { ...m, status: "needs_review" } : m)),
+          agentContent = await streamCompetitorToDocument(
+            reader,
+            agentMsgId,
+            setMessages,
+            setCompetitorDocument,
           );
         }
       }
@@ -790,12 +986,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         });
         if (fid) persistMessage(fid, "system", sysContent, "system");
 
+        setCompetitorDocument("");
+        setDocumentPanelKind("competitor");
+        setIsSplitView(true);
+
         const compMsgId = Date.now().toString() + "-comp";
         addMessage({
           id: compMsgId,
           role: "agent",
           agentType: "competitor",
-          content: "",
+          content: "Generating competitor analysis…",
           status: "pending",
         });
 
@@ -818,19 +1018,11 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           );
         } else if (res.body) {
           const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            agentContent += decoder.decode(value, { stream: true });
-            setMessages((prev) =>
-              prev.map((m) => (m.id === compMsgId ? { ...m, content: agentContent } : m)),
-            );
-          }
-
-          setMessages((prev) =>
-            prev.map((m) => (m.id === compMsgId ? { ...m, status: "needs_review" } : m)),
+          agentContent = await streamCompetitorToDocument(
+            reader,
+            compMsgId,
+            setMessages,
+            setCompetitorDocument,
           );
         }
 
@@ -846,6 +1038,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             body: JSON.stringify({ status: "review" }),
           });
         }
+
+        setDocumentPanelKind("prd");
 
         const sysContent = "Great! Generating the PRD Document...";
         addMessage({
@@ -1097,8 +1291,14 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   };
 
   const handleViewDocument = () => {
+    setDocumentPanelKind("prd");
     setIsSplitView(true);
   };
+
+  const handleViewAgentDocument = useCallback((kind: "inference" | "competitor") => {
+    setDocumentPanelKind(kind);
+    setIsSplitView(true);
+  }, []);
 
   const handleSavePrd = async () => {
     if (!featureId || !prdDocument) return;
@@ -1143,34 +1343,111 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           ) : null}
         </header>
 
-        <h2 className={styles.listSectionTitle}>Features</h2>
-        {listError && (
-          <div className={styles.listError} role="alert">
-            {listError}
-          </div>
-        )}
-        {listLoading ? (
-          <div className={styles.listEmpty}>Loading features…</div>
-        ) : featuresList.length === 0 ? (
-          <div className={styles.listEmpty}>
-            No features yet. Create one to start the AI workflow.
-          </div>
+        <div className={styles.listTabsRow} role="tablist" aria-label="Workspace sections">
+          <Link
+            href={`/workspaces/${workspaceId}`}
+            className={`${styles.listTab} ${!listViewArtifacts ? styles.listTabActive : ""}`}
+            role="tab"
+            aria-selected={!listViewArtifacts}
+          >
+            Features
+          </Link>
+          <Link
+            href={`/workspaces/${workspaceId}?view=artifacts`}
+            className={`${styles.listTab} ${listViewArtifacts ? styles.listTabActive : ""}`}
+            role="tab"
+            aria-selected={listViewArtifacts}
+          >
+            Artifacts
+          </Link>
+        </div>
+
+        {!listViewArtifacts ? (
+          <>
+            <h2 className={styles.listSectionTitle}>Features</h2>
+            {listError && (
+              <div className={styles.listError} role="alert">
+                {listError}
+              </div>
+            )}
+            {listLoading ? (
+              <div className={styles.listEmpty}>Loading features…</div>
+            ) : featuresList.length === 0 ? (
+              <div className={styles.listEmpty}>
+                No features yet. Create one to start the AI workflow.
+              </div>
+            ) : (
+              <ul className={styles.featureList}>
+                {featuresList.map((f) => (
+                  <li key={f.id}>
+                    <Link
+                      href={`/workspaces/${workspaceId}?feature=${f.id}`}
+                      className={styles.featureRow}
+                    >
+                      <span className={styles.featureRowName}>{f.name}</span>
+                      <span className={styles.featureRowMeta}>
+                        {statusLabel(f.status)} · {f.priority}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         ) : (
-          <ul className={styles.featureList}>
-            {featuresList.map((f) => (
-              <li key={f.id}>
-                <Link
-                  href={`/workspaces/${workspaceId}?feature=${f.id}`}
-                  className={styles.featureRow}
-                >
-                  <span className={styles.featureRowName}>{f.name}</span>
-                  <span className={styles.featureRowMeta}>
-                    {statusLabel(f.status)} · {f.priority}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <>
+            <h2 className={styles.listSectionTitle}>Artifacts</h2>
+            {artifactsError && (
+              <div className={styles.listError} role="alert">
+                {artifactsError}
+              </div>
+            )}
+            {artifactsLoading ? (
+              <div className={styles.listEmpty}>Loading artifacts…</div>
+            ) : workspaceArtifacts.length === 0 ? (
+              <div className={styles.listEmpty}>
+                No artifacts in this workspace yet. Complete inference, competitor analysis, or PRD
+                generation on a feature.
+              </div>
+            ) : (
+              <div className={styles.artifactsTableWrap}>
+                <table className={styles.artifactsTable}>
+                  <thead>
+                    <tr>
+                      <th>Kind</th>
+                      <th>Title</th>
+                      <th>Feature</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workspaceArtifacts.map((r) => (
+                      <tr key={r.id}>
+                        <td>
+                          <span className={styles.artifactKindBadge}>
+                            {workspaceArtifactKindLabel(r.kind)}
+                          </span>
+                          {r.version > 1 ? (
+                            <span className={styles.artifactVersionMuted}>v{r.version}</span>
+                          ) : null}
+                        </td>
+                        <td>{r.title ?? "—"}</td>
+                        <td>
+                          <Link
+                            href={`/workspaces/${workspaceId}?feature=${r.feature_id}`}
+                            className={styles.artifactFeatureLink}
+                          >
+                            {r.feature_name ?? r.feature_id}
+                          </Link>
+                        </td>
+                        <td className={styles.artifactDate}>{listTimeAgo(r.updated_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
 
         {isModalOpen && (
@@ -1225,6 +1502,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 onSend={handleSend}
                 onApprove={handleApprove}
                 onViewDocument={handleViewDocument}
+                onViewAgentDocument={handleViewAgentDocument}
                 clarifyingOpen={clarifyingOpen}
                 clarifyingQuestions={pendingClarifyingQuestions}
                 onClarifyComplete={handleClarifyComplete}
@@ -1238,22 +1516,30 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
         <div className={styles.editorPane}>
           <header className={styles.paneHeader}>
-            <h2 className={styles.paneTitle}>PRD Editor</h2>
-            <button
-              type="button"
-              className={styles.mockBtn}
-              onClick={handleSavePrd}
-              disabled={savingPrd || !featureId}
-            >
-              {savingPrd ? "Saving..." : savedPrd ? "✓ Saved" : "Save Changes"}
-            </button>
+            <h2 className={styles.paneTitle}>
+              {documentPanelKind === "prd"
+                ? "PRD Editor"
+                : documentPanelKind === "inference"
+                  ? "Feature inference"
+                  : "Competitor analysis"}
+            </h2>
+            {documentPanelKind === "prd" ? (
+              <button
+                type="button"
+                className={styles.mockBtn}
+                onClick={handleSavePrd}
+                disabled={savingPrd || !featureId}
+              >
+                {savingPrd ? "Saving..." : savedPrd ? "✓ Saved" : "Save Changes"}
+              </button>
+            ) : null}
           </header>
-          {streamError ? (
+          {documentPanelKind === "prd" && streamError ? (
             <div className={styles.streamError} role="alert">
               {streamError}
             </div>
           ) : null}
-          {prdRecoveryPromptOpen && featureStatus === "generating" ? (
+          {documentPanelKind === "prd" && prdRecoveryPromptOpen && featureStatus === "generating" ? (
             <PrdRecoveryBanner
               hasDraft={prdDocument.trim().length > 0}
               busy={isLoading}
@@ -1263,13 +1549,26 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             />
           ) : null}
           <div className={styles.editorContent}>
-            <textarea
-              className={styles.mockDocumentEditor}
-              value={prdDocument}
-              onChange={(e) => {
-                setPrdDocument(e.target.value);
-                setSavedPrd(false);
-              }}
+            <PrdDocumentEditor
+              syncKey={featureId ?? "no-feature"}
+              readOnly={documentPanelKind !== "prd"}
+              streaming={documentPanelKind === "prd" && isLoading}
+              ariaBusy={isLoading}
+              value={
+                documentPanelKind === "prd"
+                  ? prdDocument
+                  : documentPanelKind === "inference"
+                    ? inferenceDocument
+                    : competitorDocument
+              }
+              onChange={
+                documentPanelKind === "prd"
+                  ? (md) => {
+                      setPrdDocument(md);
+                      setSavedPrd(false);
+                    }
+                  : undefined
+              }
             />
           </div>
         </div>

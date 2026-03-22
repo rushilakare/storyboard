@@ -4,19 +4,19 @@ overview: "Replace the raw markdown textarea with a document-style experience: a
 todos:
   - id: deps-editor
     content: Add TipTap (+ table extensions), react-markdown, remark-gfm, and markdown round-trip libs (tiptap-markdown or markdown-it + turndown)
-    status: pending
+    status: completed
   - id: prd-doc-component
     content: "Create PrdDocumentEditor: streaming markdown preview vs TipTap edit mode; paper styling in page.module.css"
-    status: pending
+    status: completed
   - id: wire-workspace
     content: Replace textarea in WorkspaceDetailClient; sync streaming flag; preserve autosave/finalize flows
-    status: pending
+    status: completed
   - id: qa-fidelity
     content: "Smoke-test: stream PRD, edit, save, reload feature; verify tables and headings round-trip acceptably"
-    status: pending
+    status: completed
   - id: memory-entry
     content: Append dated summary to MEMORY.md after implementation (per project rule)
-    status: pending
+    status: completed
 isProject: false
 ---
 

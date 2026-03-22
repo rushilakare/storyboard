@@ -4,6 +4,71 @@ import type { Database } from '@/lib/database.types';
 export type AppSupabase = SupabaseClient<Database>;
 
 export const ARTIFACT_KIND_PRD = 'prd' as const;
+export const ARTIFACT_KIND_INFERENCE = 'inference' as const;
+export const ARTIFACT_KIND_COMPETITOR = 'competitor' as const;
+
+const AGENT_ARTIFACT_KINDS = new Set<string>([
+  ARTIFACT_KIND_INFERENCE,
+  ARTIFACT_KIND_COMPETITOR,
+]);
+
+export function isAgentArtifactKind(kind: string): boolean {
+  return AGENT_ARTIFACT_KINDS.has(kind);
+}
+
+function defaultTitleForAgentArtifactKind(kind: string): string {
+  if (kind === ARTIFACT_KIND_INFERENCE) return 'Feature inference';
+  if (kind === ARTIFACT_KIND_COMPETITOR) return 'Competitor analysis';
+  return kind;
+}
+
+/**
+ * Append a completed inference/competitor artifact (version bumps per run).
+ */
+export async function appendCompletedAgentArtifact(
+  sb: AppSupabase,
+  featureId: string,
+  kind: string,
+  opts: {
+    body: string;
+    sourceMessageId: string;
+    title?: string | null;
+    mimeType?: string;
+  },
+): Promise<{ ok: true; row: FeatureArtifactRow } | { ok: false; error: string }> {
+  if (!isAgentArtifactKind(kind)) {
+    return { ok: false, error: 'unsupported agent artifact kind' };
+  }
+  const body = opts.body?.trim() ?? '';
+  if (!body) {
+    return { ok: false, error: 'empty body' };
+  }
+
+  let version: number;
+  try {
+    version = await nextArtifactVersion(sb, featureId, kind);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'version lookup failed' };
+  }
+
+  const { data, error } = await sb
+    .from('feature_artifacts')
+    .insert({
+      feature_id: featureId,
+      kind,
+      mime_type: opts.mimeType ?? 'text/markdown',
+      title: opts.title ?? defaultTitleForAgentArtifactKind(kind),
+      body,
+      version,
+      is_draft: false,
+      source_message_id: opts.sourceMessageId,
+    })
+    .select()
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, row: data as FeatureArtifactRow };
+}
 
 export type FeatureArtifactRow = {
   id: string;

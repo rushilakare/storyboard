@@ -18,6 +18,7 @@ interface ChatProps {
   onApprove: (msgId: string, agentType: string) => void;
   isLoading?: boolean;
   onViewDocument?: () => void;
+  onViewAgentDocument?: (kind: "inference" | "competitor") => void;
   clarifyingOpen?: boolean;
   clarifyingQuestions?: ClarifyingQuestion[];
   onClarifyComplete?: (answers: ClarificationAnswers) => void;
@@ -30,6 +31,7 @@ export default function ChatInterface({
   onApprove,
   isLoading,
   onViewDocument,
+  onViewAgentDocument,
   clarifyingOpen,
   clarifyingQuestions = [],
   onClarifyComplete,
@@ -67,18 +69,67 @@ export default function ChatInterface({
               <div className={styles.messageText}>
                 {msg.content}
               </div>
-              
-              {msg.status === "needs_review" && !isLoading && (
+
+              {msg.status === "needs_review" &&
+                !isLoading &&
+                (msg.agentType === "inference" || msg.agentType === "competitor") && (
+                  <div className={styles.actions}>
+                    {onViewAgentDocument ? (
+                      <button
+                        type="button"
+                        className={styles.reviseBtn}
+                        onClick={() => onViewAgentDocument(msg.agentType as "inference" | "competitor")}
+                      >
+                        {msg.agentType === "inference"
+                          ? "View feature inference"
+                          : "View competitor analysis"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={styles.approveBtn}
+                      onClick={() => onApprove(msg.id, msg.agentType!)}
+                    >
+                      Looks Good (Proceed)
+                    </button>
+                  </div>
+                )}
+
+              {msg.status === "needs_review" && !isLoading && msg.agentType === "prd" && (
                 <div className={styles.actions}>
-                  <button className={styles.approveBtn} onClick={() => onApprove(msg.id, msg.agentType!)}>
+                  <button type="button" className={styles.approveBtn} onClick={() => onApprove(msg.id, "prd")}>
                     Looks Good (Proceed)
+                  </button>
+                </div>
+              )}
+
+              {msg.agentType === "inference" && msg.status === "done" && onViewAgentDocument && (
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.reviseBtn}
+                    onClick={() => onViewAgentDocument("inference")}
+                  >
+                    View feature inference
+                  </button>
+                </div>
+              )}
+
+              {msg.agentType === "competitor" && msg.status === "done" && onViewAgentDocument && (
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className={styles.reviseBtn}
+                    onClick={() => onViewAgentDocument("competitor")}
+                  >
+                    View competitor analysis
                   </button>
                 </div>
               )}
 
               {msg.agentType === "prd" && msg.status === "done" && (
                 <div className={styles.actions}>
-                  <button className={styles.approveBtn} onClick={onViewDocument}>
+                  <button type="button" className={styles.approveBtn} onClick={onViewDocument}>
                     View PRD Document
                   </button>
                 </div>

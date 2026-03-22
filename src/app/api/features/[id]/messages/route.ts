@@ -1,3 +1,4 @@
+import { appendCompletedAgentArtifact, isAgentArtifactKind } from '@/lib/artifact-persistence';
 import { requireUser } from '@/lib/auth/require-user';
 import { embedMessageAsync } from '@/lib/embeddings';
 import { NextResponse, NextRequest } from 'next/server';
@@ -84,6 +85,27 @@ export async function POST(
   }
 
   embedMessageAsync(auth.supabase, data.id, content).catch(() => {});
+
+  if (
+    role === 'assistant' &&
+    typeof agent_type === 'string' &&
+    isAgentArtifactKind(agent_type)
+  ) {
+    const artifactResult = await appendCompletedAgentArtifact(
+      auth.supabase,
+      featureId,
+      agent_type,
+      { body: content, sourceMessageId: data.id },
+    );
+    if (!artifactResult.ok) {
+      console.error(
+        'appendCompletedAgentArtifact failed',
+        featureId,
+        agent_type,
+        artifactResult.error,
+      );
+    }
+  }
 
   return NextResponse.json(data, { status: 201 });
 }
