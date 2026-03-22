@@ -2,6 +2,8 @@
 
 ## 2026-03-22
 
+- **Git repository initialized:** Ran `git init` on `main`, staged the project (existing `.gitignore` keeps `.env*` and `.vercel` out of commits), and created root commit `c2be2e8` (“Initial commit: Next.js PM tool with workspaces, features, and agents”). No remote yet—add with `git remote add origin <url>` then `git push -u origin main`.
+
 - **LLM-generated post-inference clarifying questions:** The inference agent now appends a delimiter (`<<<CLARIFYING_QUESTIONS_JSON>>>`) and a single-line minified `{"questions":[...]}` payload (3–6 items). Types include `single`, `multiple`, `multiple_with_other`, and `text` (freeform textarea). The chat stream shows narrative-only text; parsed questions drive `ClarifyingQuestionsModal` via `pendingClarifyingQuestions`. Assistant rows persist `metadata.clarifying_questions`; `inference_clarifications` on the feature is stored as v2 `{ v: 2, questions, answers }`. `assembleFeatureContext` formats v2 clarifications by question title; legacy flat jsonb rows still work. Closing the clarifier without finishing removes the dedupe ref so a refresh can reopen; switching features clears the ref.
   - Prompts: `src/lib/agent-prompts.ts` (`INFERENCE_CLARIFYING_JSON_RULES`), `src/lib/context.ts` (`buildInferenceSystem`), `src/app/api/agents/infer/route.ts` (legacy prompt).
   - Parsing/types: `src/lib/postInferenceQuestions.ts` (`splitInferenceDisplayBuffer`, `parseInferenceStreamComplete`, `formatClarificationSummary(questions, answers)`, `formatAnswerForQuestion`, `isInferenceClarificationsV2`).
