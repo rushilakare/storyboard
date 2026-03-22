@@ -3,6 +3,7 @@ import { openai } from '@ai-sdk/openai';
 import { INFERENCE_CLARIFYING_JSON_RULES, INFERENCE_OUTPUT_DISCIPLINE } from '@/lib/agent-prompts';
 import { requireUser } from '@/lib/auth/require-user';
 import { assembleFeatureContext } from '@/lib/context';
+import { knowledgeBaseHeaders } from '@/lib/knowledge/httpHeaders';
 
 export const maxDuration = 60;
 
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       const context = await assembleFeatureContext(auth.supabase, featureId, 'inference', {
         userQuery: revision || undefined,
         enableRetrieval: !!revision,
+        userId: auth.userId,
       });
 
       const { textStream } = streamText({
@@ -27,7 +29,10 @@ export async function POST(request: Request) {
       });
 
       return new Response(textStream, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          ...knowledgeBaseHeaders(context.knowledgeBase),
+        },
       });
     }
 

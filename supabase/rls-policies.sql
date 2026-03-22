@@ -7,6 +7,8 @@ alter table features enable row level security;
 alter table prd_documents enable row level security;
 alter table feature_messages enable row level security;
 alter table feature_artifacts enable row level security;
+alter table knowledge_documents enable row level security;
+alter table knowledge_chunks enable row level security;
 
 drop policy if exists "workspaces_select_anon" on workspaces;
 drop policy if exists "workspaces_insert_anon" on workspaces;
@@ -232,3 +234,39 @@ create policy "feature_artifacts_delete_own" on feature_artifacts for delete to 
       where f.id = feature_artifacts.feature_id and w.created_by = auth.uid()
     )
   );
+
+drop policy if exists "knowledge_documents_select_own" on knowledge_documents;
+drop policy if exists "knowledge_documents_insert_own" on knowledge_documents;
+drop policy if exists "knowledge_documents_update_own" on knowledge_documents;
+drop policy if exists "knowledge_documents_delete_own" on knowledge_documents;
+
+create policy "knowledge_documents_select_own" on knowledge_documents for select to authenticated
+  using (user_id = auth.uid());
+
+create policy "knowledge_documents_insert_own" on knowledge_documents for insert to authenticated
+  with check (user_id = auth.uid());
+
+create policy "knowledge_documents_update_own" on knowledge_documents for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy "knowledge_documents_delete_own" on knowledge_documents for delete to authenticated
+  using (user_id = auth.uid());
+
+drop policy if exists "knowledge_chunks_select_own" on knowledge_chunks;
+drop policy if exists "knowledge_chunks_insert_own" on knowledge_chunks;
+drop policy if exists "knowledge_chunks_update_own" on knowledge_chunks;
+drop policy if exists "knowledge_chunks_delete_own" on knowledge_chunks;
+
+create policy "knowledge_chunks_select_own" on knowledge_chunks for select to authenticated
+  using (user_id = auth.uid());
+
+create policy "knowledge_chunks_insert_own" on knowledge_chunks for insert to authenticated
+  with check (user_id = auth.uid());
+
+create policy "knowledge_chunks_update_own" on knowledge_chunks for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy "knowledge_chunks_delete_own" on knowledge_chunks for delete to authenticated
+  using (user_id = auth.uid());

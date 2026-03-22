@@ -8,6 +8,7 @@ import {
 import { finalizeOpenPrdDraft } from '@/lib/artifact-persistence';
 import { requireUser } from '@/lib/auth/require-user';
 import { assembleFeatureContext } from '@/lib/context';
+import { knowledgeBaseHeaders } from '@/lib/knowledge/httpHeaders';
 import { patchFeatureStatus } from '@/lib/prd-persistence';
 
 export const maxDuration = 60;
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
         userQuery: revision || undefined,
         enableRetrieval: !!revision,
         omitSavedPrdDocument: continuationPrefix.length > 0,
+        userId: auth.userId,
       });
 
       let systemPrompt = context.systemPrompt;
@@ -85,7 +87,10 @@ export async function POST(request: Request) {
       });
 
       return new Response(textStream, {
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          ...knowledgeBaseHeaders(context.knowledgeBase),
+        },
       });
     }
 

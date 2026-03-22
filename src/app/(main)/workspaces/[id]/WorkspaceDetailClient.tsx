@@ -15,12 +15,30 @@ import {
   parseInferenceStreamComplete,
   splitInferenceDisplayBuffer,
 } from "@/lib/postInferenceQuestions";
+import {
+  formatKnowledgeBaseChatNote,
+  parseKnowledgeBaseFromHeaders,
+} from "@/lib/knowledge/chatNotice";
 
 /** Chat shows a stub; full text lives in the document panel and in persisted messages. */
 const INFERENCE_CHAT_STUB =
   "Feature inference is ready. Use “View feature inference” to read it in the document panel, then approve to continue.";
 const COMPETITOR_CHAT_STUB =
   "Competitor analysis is ready. Use “View competitor analysis” in the document panel, then approve to generate the PRD.";
+
+function appendKnowledgeBaseChatLine(addMessage: (msg: Message) => void, res: Response) {
+  if (!res.ok) return;
+  const meta = parseKnowledgeBaseFromHeaders(res.headers);
+  const note = meta ? formatKnowledgeBaseChatNote(meta) : null;
+  if (!note) return;
+  addMessage({
+    id: `${Date.now()}-kb-${Math.random().toString(36).slice(2, 9)}`,
+    role: "agent",
+    agentType: "system",
+    content: note,
+    status: "done",
+  });
+}
 
 type DocumentPanelKind = "inference" | "competitor" | "prd";
 
@@ -791,21 +809,24 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               : m,
           ),
         );
-      } else if (res.body) {
-        const reader = res.body.getReader();
-        const { narrative, questions } = await consumeInferenceStream(
-          reader,
-          agentMsgId,
-          setMessages,
-          setInferenceDocument,
-        );
-        narrativeForPersistence = narrative;
-        parsedQuestions = questions;
-        if (questions.length > 0) {
-          setPendingClarifyingQuestions(questions);
-          openClarifyingModal(agentMsgId);
-        } else {
-          setPendingClarifyingQuestions([]);
+      } else {
+        appendKnowledgeBaseChatLine(addMessage, res);
+        if (res.body) {
+          const reader = res.body.getReader();
+          const { narrative, questions } = await consumeInferenceStream(
+            reader,
+            agentMsgId,
+            setMessages,
+            setInferenceDocument,
+          );
+          narrativeForPersistence = narrative;
+          parsedQuestions = questions;
+          if (questions.length > 0) {
+            setPendingClarifyingQuestions(questions);
+            openClarifyingModal(agentMsgId);
+          } else {
+            setPendingClarifyingQuestions([]);
+          }
         }
       }
     } catch (e) {
@@ -900,31 +921,35 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           setStreamError(err || res.statusText);
         }
       } else if (isPrd) {
+        if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
         agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
-      } else if (res.body) {
-        const reader = res.body.getReader();
-        if (agentType === "inference") {
-          const { narrative, questions } = await consumeInferenceStream(
-            reader,
-            agentMsgId,
-            setMessages,
-            setInferenceDocument,
-          );
-          agentContent = narrative;
-          inferenceQuestionsForMeta = questions;
-          if (questions.length > 0) {
-            setPendingClarifyingQuestions(questions);
-            openClarifyingModal(agentMsgId);
+      } else {
+        if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
+        if (res.body) {
+          const reader = res.body.getReader();
+          if (agentType === "inference") {
+            const { narrative, questions } = await consumeInferenceStream(
+              reader,
+              agentMsgId,
+              setMessages,
+              setInferenceDocument,
+            );
+            agentContent = narrative;
+            inferenceQuestionsForMeta = questions;
+            if (questions.length > 0) {
+              setPendingClarifyingQuestions(questions);
+              openClarifyingModal(agentMsgId);
+            } else {
+              setPendingClarifyingQuestions([]);
+            }
           } else {
-            setPendingClarifyingQuestions([]);
+            agentContent = await streamCompetitorToDocument(
+              reader,
+              agentMsgId,
+              setMessages,
+              setCompetitorDocument,
+            );
           }
-        } else {
-          agentContent = await streamCompetitorToDocument(
-            reader,
-            agentMsgId,
-            setMessages,
-            setCompetitorDocument,
-          );
         }
       }
     } catch (e) {
@@ -1016,14 +1041,17 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 : m,
             ),
           );
-        } else if (res.body) {
-          const reader = res.body.getReader();
-          agentContent = await streamCompetitorToDocument(
-            reader,
-            compMsgId,
-            setMessages,
-            setCompetitorDocument,
-          );
+        } else {
+          appendKnowledgeBaseChatLine(addMessage, res);
+          if (res.body) {
+            const reader = res.body.getReader();
+            agentContent = await streamCompetitorToDocument(
+              reader,
+              compMsgId,
+              setMessages,
+              setCompetitorDocument,
+            );
+          }
         }
 
         if (fid && agentContent) {
@@ -1081,6 +1109,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             body: JSON.stringify({ featureId: fid, ...featureData }),
           });
 
+          if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
           agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
 
           setMessages((prev) =>
@@ -1156,6 +1185,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           continue: partial,
         }),
       });
+      if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
       const agentContent = await consumePrdStream(res, fid, partial, setPrdDocument);
       if (fid && agentContent) {
         await finalizePrdAndPersistAssistant(fid, agentContent);
@@ -1202,6 +1232,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ featureId: fid, ...featureData }),
       });
+      if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
       const agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
       if (fid && agentContent) {
         await finalizePrdAndPersistAssistant(fid, agentContent);

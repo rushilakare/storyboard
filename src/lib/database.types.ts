@@ -197,6 +197,87 @@ export type Database = {
           },
         ];
       };
+      knowledge_documents: {
+        Row: {
+          id: string;
+          user_id: string;
+          source_kind: 'upload' | 'text';
+          filename: string;
+          title: string | null;
+          mime_type: string;
+          byte_size: number;
+          storage_path: string | null;
+          body: string | null;
+          status: 'pending' | 'processing' | 'ready' | 'failed';
+          error_message: string | null;
+          chunk_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          source_kind: 'upload' | 'text';
+          filename: string;
+          title?: string | null;
+          mime_type: string;
+          byte_size?: number;
+          storage_path?: string | null;
+          body?: string | null;
+          status?: 'pending' | 'processing' | 'ready' | 'failed';
+          error_message?: string | null;
+          chunk_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          filename?: string;
+          title?: string | null;
+          mime_type?: string;
+          byte_size?: number;
+          storage_path?: string | null;
+          body?: string | null;
+          status?: 'pending' | 'processing' | 'ready' | 'failed';
+          error_message?: string | null;
+          chunk_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      knowledge_chunks: {
+        Row: {
+          id: string;
+          document_id: string;
+          user_id: string;
+          chunk_index: number;
+          content: string;
+          embedding: string | null;
+          search_vector: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          document_id: string;
+          user_id: string;
+          chunk_index: number;
+          content: string;
+          embedding?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          content?: string;
+          embedding?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'knowledge_chunks_document_id_fkey';
+            columns: ['document_id'];
+            isOneToOne: false;
+            referencedRelation: 'knowledge_documents';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -234,6 +315,19 @@ export type Database = {
           rank: number;
         }>;
       };
+      match_knowledge_chunks: {
+        Args: {
+          p_query_embedding: string;
+          p_match_count?: number;
+        };
+        Returns: Array<{
+          id: string;
+          document_id: string;
+          source_label: string;
+          content: string;
+          similarity: number;
+        }>;
+      };
     };
     Enums: {
       [_ in never]: never;
@@ -250,3 +344,5 @@ export type Feature = Database['public']['Tables']['features']['Row'];
 export type PrdDocument = Database['public']['Tables']['prd_documents']['Row'];
 export type FeatureArtifact = Database['public']['Tables']['feature_artifacts']['Row'];
 export type FeatureMessage = Database['public']['Tables']['feature_messages']['Row'];
+export type KnowledgeDocument = Database['public']['Tables']['knowledge_documents']['Row'];
+export type KnowledgeChunk = Database['public']['Tables']['knowledge_chunks']['Row'];

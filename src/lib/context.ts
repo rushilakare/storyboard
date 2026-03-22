@@ -1,6 +1,8 @@
 import type { AppSupabase } from './artifact-persistence';
 import { resolvePrdContentForFeature } from './artifact-persistence';
 import { computeEmbedding } from './embeddings';
+import type { KnowledgeBaseNotice } from './knowledge/httpHeaders';
+import { retrieveKnowledgeChunks } from './knowledge/retrieval';
 import {
   COMPETITOR_OUTPUT_DISCIPLINE,
   INFERENCE_CLARIFYING_JSON_RULES,
@@ -20,6 +22,7 @@ import {
 interface AssembledContext {
   systemPrompt: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  knowledgeBase: KnowledgeBaseNotice;
 }
 
 interface AssembleOptions {
@@ -27,6 +30,8 @@ interface AssembleOptions {
   maxChars?: number;
   enableRetrieval?: boolean;
   userQuery?: string;
+  /** Current user — enables global knowledge base RAG (chunk retrieval). */
+  userId?: string;
   /** When true, do not inject saved prd_documents into system (e.g. PRD continue mode already includes partial draft). */
   omitSavedPrdDocument?: boolean;
 }
@@ -209,6 +214,8 @@ export async function assembleFeatureContext(
 
   const featureBlock = featureLines.join('\n');
 
+  const knowledgeBase: KnowledgeBaseNotice = { consulted: false, sources: [] };
+
   let retrievedSection = '';
   if (options?.enableRetrieval && options.userQuery) {
     try {
@@ -226,6 +233,40 @@ export async function assembleFeatureContext(
       }
     } catch {
       // Embedding or search failed — proceed without retrieval
+    }
+  }
+
+  if (options?.userId) {
+    const kbQuery = [
+      feature.name,
+      feature.purpose,
+      feature.requirements,
+      options.userQuery,
+    ]
+      .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      .join('\n')
+      .trim();
+    if (kbQuery.length >= 12) {
+      knowledgeBase.consulted = true;
+      try {
+        const kbChunks = await retrieveKnowledgeChunks(sb, kbQuery, 8);
+        const seenDoc = new Set<string>();
+        for (const c of kbChunks) {
+          if (!seenDoc.has(c.document_id)) {
+            seenDoc.add(c.document_id);
+            knowledgeBase.sources.push(c.source_label);
+          }
+        }
+        if (kbChunks.length > 0) {
+          retrievedSection +=
+            '\n\n### Knowledge base (retrieved excerpts)\n' +
+            kbChunks
+              .map((c) => `- [${c.source_label}] ${c.content.slice(0, 400)}`)
+              .join('\n');
+        }
+      } catch {
+        // proceed without KB retrieval
+      }
     }
   }
 
@@ -270,7 +311,7 @@ export async function assembleFeatureContext(
     });
   }
 
-  return { systemPrompt, messages: conversationMessages };
+  return { systemPrompt, messages: conversationMessages, knowledgeBase };
 }
 
 export async function retrieveSemanticContext(

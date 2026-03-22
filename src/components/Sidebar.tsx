@@ -45,6 +45,12 @@ export default function Sidebar() {
           Workspaces
         </Link>
         <Link
+          href="/knowledge"
+          className={`${styles.navItem} ${pathname.startsWith('/knowledge') ? styles.navItemActive : ''}`}
+        >
+          Knowledge base
+        </Link>
+        <Link
           href="/artifacts"
           className={`${styles.navItem} ${pathname === '/artifacts' || pathname.startsWith('/artifacts/') ? styles.navItemActive : ''}`}
         >
