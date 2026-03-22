@@ -1,3 +1,5 @@
+import './pdfDomPolyfill';
+
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import mammoth from 'mammoth';
