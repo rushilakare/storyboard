@@ -59,6 +59,40 @@
   color: var(--text-primary);
 }
 
+.sectionHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.sectionHeaderRow .sectionTitle {
+  margin-bottom: 0;
+}
+
+.listSearchInput {
+  min-width: 200px;
+  max-width: 320px;
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.listSearchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.listSearchInput:focus {
+  outline: none;
+  border-color: var(--text-muted);
+}
+
 .section {
   margin-top: 32px;
 }

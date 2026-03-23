@@ -18,6 +18,30 @@
   letter-spacing: -0.5px;
 }
 
+.searchRow {
+  margin-bottom: 24px;
+}
+
+.listSearchInput {
+  width: 100%;
+  max-width: 400px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.listSearchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.listSearchInput:focus {
+  outline: none;
+  border-color: var(--text-muted);
+}
+
 .tableContainer {
   border: 1px solid var(--border-color);
   border-radius: 6px;

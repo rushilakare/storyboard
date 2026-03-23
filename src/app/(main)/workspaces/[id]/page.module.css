@@ -596,6 +596,30 @@
   margin-bottom: 12px;
 }
 
+.listSearchRow {
+  margin-bottom: 12px;
+  max-width: 400px;
+}
+
+.listSearchInput {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.listSearchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.listSearchInput:focus {
+  outline: none;
+  border-color: var(--text-muted);
+}
+
 .listPrimaryBtn {
   background-color: var(--text-primary);
   color: var(--bg-color);

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import Link from 'next/link';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 
 interface Feature {
   id: string;
@@ -17,7 +18,6 @@ interface DashboardStats {
   workspaceCount: number;
   featureCount: number;
   prdCount: number;
-  recentFeatures: Feature[];
 }
 
 function timeAgo(dateStr: string) {
@@ -61,9 +61,12 @@ export default function Dashboard() {
     workspaceCount: 0,
     featureCount: 0,
     prdCount: 0,
-    recentFeatures: [],
   });
   const [loading, setLoading] = useState(true);
+  const [featureSearch, setFeatureSearch] = useState('');
+  const debouncedFeatureSearch = useDebouncedValue(featureSearch, 250);
+  const [tableFeatures, setTableFeatures] = useState<Feature[]>([]);
+  const [tableLoading, setTableLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -81,7 +84,6 @@ export default function Dashboard() {
           prdCount: Array.isArray(features)
             ? features.filter((f: Feature) => f.status === 'done' || f.status === 'review').length
             : 0,
-          recentFeatures: Array.isArray(features) ? features.slice(0, 5) : [],
         });
       } catch (e) {
         console.error('Dashboard load error', e);
@@ -91,6 +93,31 @@ export default function Dashboard() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    async function loadTable() {
+      setTableLoading(true);
+      const q = debouncedFeatureSearch.trim();
+      const url = q
+        ? `/api/features?q=${encodeURIComponent(q)}&limit=50`
+        : '/api/features?limit=10';
+      try {
+        const res = await fetch(url);
+        const features = (await res.json()) as Feature[];
+        if (!Array.isArray(features)) {
+          setTableFeatures([]);
+          return;
+        }
+        setTableFeatures(q ? features : features.slice(0, 5));
+      } catch (e) {
+        console.error('Dashboard features table load error', e);
+        setTableFeatures([]);
+      } finally {
+        setTableLoading(false);
+      }
+    }
+    loadTable();
+  }, [debouncedFeatureSearch]);
 
   return (
     <div className={styles.dashboard}>
@@ -117,7 +144,17 @@ export default function Dashboard() {
       </div>
 
       <div className={styles.section}>
-        <h2 className={styles.sectionTitle}>Recent Features</h2>
+        <div className={styles.sectionHeaderRow}>
+          <h2 className={styles.sectionTitle}>Recent Features</h2>
+          <input
+            type="search"
+            className={styles.listSearchInput}
+            placeholder="Search features…"
+            value={featureSearch}
+            onChange={(e) => setFeatureSearch(e.target.value)}
+            aria-label="Search features by name or description"
+          />
+        </div>
         <div className={styles.tableContainer}>
           <table className={styles.table}>
             <thead>
@@ -129,18 +166,20 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {tableLoading ? (
                 <tr>
                   <td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>Loading...</td>
                 </tr>
-              ) : stats.recentFeatures.length === 0 ? (
+              ) : tableFeatures.length === 0 ? (
                 <tr>
                   <td colSpan={4} style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>
-                    No features yet
+                    {debouncedFeatureSearch.trim()
+                      ? 'No matching features'
+                      : 'No features yet'}
                   </td>
                 </tr>
               ) : (
-                stats.recentFeatures.map(f => (
+                tableFeatures.map(f => (
                   <tr key={f.id}>
                     <td>
                       <Link

@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { KnowledgeBulkUpload } from '@/components/KnowledgeBulkUpload';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { MAX_KNOWLEDGE_TEXT_CHARS } from '@/lib/knowledge/constants';
 import styles from './page.module.css';
 
@@ -40,7 +42,9 @@ function displayName(row: KnowledgeListItem) {
   return row.title?.trim() || row.filename;
 }
 
-export default function KnowledgePage() {
+function KnowledgePageContent() {
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('highlight');
   const [rows, setRows] = useState<KnowledgeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,10 +53,16 @@ export default function KnowledgePage() {
   const [textContent, setTextContent] = useState('');
   const [savingText, setSavingText] = useState(false);
   const [textError, setTextError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch('/api/knowledge');
+      const qs = debouncedSearch.trim()
+        ? `?q=${encodeURIComponent(debouncedSearch.trim())}`
+        : '';
+      const res = await fetch(`/api/knowledge${qs}`);
       const data = await res.json();
       if (!res.ok) {
         setError(typeof data?.error === 'string' ? data.error : `Request failed (${res.status})`);
@@ -67,11 +77,17 @@ export default function KnowledgePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!highlightId || loading || rows.length === 0) return;
+    const el = document.getElementById(`kb-doc-${highlightId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightId, loading, rows]);
 
   useEffect(() => {
     const processing = rows.some((r) => r.status === 'processing' || r.status === 'pending');
@@ -157,6 +173,14 @@ export default function KnowledgePage() {
         <button type="button" className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
           Add text
         </button>
+        <input
+          type="search"
+          className={styles.listSearchInput}
+          placeholder="Search by filename, title, type, or status…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          aria-label="Search knowledge documents"
+        />
       </div>
 
       <KnowledgeBulkUpload onAfterEachUpload={load} />
@@ -165,7 +189,9 @@ export default function KnowledgePage() {
         <div className={styles.emptyState}>Loading…</div>
       ) : !error && rows.length === 0 ? (
         <div className={styles.emptyState}>
-          Nothing saved yet. Upload a document or add text to build your knowledge base.
+          {debouncedSearch.trim()
+            ? 'No documents match your search.'
+            : 'Nothing saved yet. Upload a document or add text to build your knowledge base.'}
         </div>
       ) : !error ? (
         <div className={styles.tableContainer}>
@@ -182,7 +208,11 @@ export default function KnowledgePage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  id={`kb-doc-${r.id}`}
+                  className={highlightId === r.id ? styles.rowHighlighted : undefined}
+                >
                   <td>
                     <span className={styles.kindBadge}>{sourceLabel(r)}</span>
                   </td>
@@ -259,5 +289,13 @@ export default function KnowledgePage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function KnowledgePage() {
+  return (
+    <Suspense fallback={<div className={styles.container}><div className={styles.emptyState}>Loading…</div></div>}>
+      <KnowledgePageContent />
+    </Suspense>
   );
 }

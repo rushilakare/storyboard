@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import styles from "./page.module.css";
 import NewFeatureModal from "@/components/NewFeatureModal";
 import ChatInterface, { Message } from "@/components/ChatInterface";
@@ -229,6 +230,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [workspaceArtifacts, setWorkspaceArtifacts] = useState<WorkspaceArtifactRow[]>([]);
   const [artifactsLoading, setArtifactsLoading] = useState(!featureParam && listViewArtifacts);
   const [artifactsError, setArtifactsError] = useState<string | null>(null);
+  const [featureListSearch, setFeatureListSearch] = useState("");
+  const [artifactListSearch, setArtifactListSearch] = useState("");
+  const debouncedFeatureListSearch = useDebouncedValue(featureListSearch, 250);
+  const debouncedArtifactListSearch = useDebouncedValue(artifactListSearch, 250);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSplitView, setIsSplitView] = useState(false);
@@ -459,7 +464,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       setArtifactsError(null);
       (async () => {
         try {
-          const res = await fetch(`/api/workspaces/${workspaceId}/artifacts`);
+          const aq = debouncedArtifactListSearch.trim();
+          const artifactQs = aq
+            ? `?q=${encodeURIComponent(aq)}`
+            : "";
+          const res = await fetch(
+            `/api/workspaces/${workspaceId}/artifacts${artifactQs}`,
+          );
           const data = await res.json();
           if (cancelled) return;
           if (!res.ok) {
@@ -486,7 +497,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setListError(null);
     (async () => {
       try {
-        const res = await fetch(`/api/features?workspaceId=${encodeURIComponent(workspaceId)}`);
+        const fq = debouncedFeatureListSearch.trim();
+        const featureQs = fq
+          ? `&q=${encodeURIComponent(fq)}`
+          : "";
+        const res = await fetch(
+          `/api/features?workspaceId=${encodeURIComponent(workspaceId)}${featureQs}`,
+        );
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
@@ -504,7 +521,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, featureParam, listViewArtifacts]);
+  }, [
+    workspaceId,
+    featureParam,
+    listViewArtifacts,
+    debouncedFeatureListSearch,
+    debouncedArtifactListSearch,
+  ]);
 
   // Reset UI state when navigating back to list
   useEffect(() => {
@@ -1396,6 +1419,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         {!listViewArtifacts ? (
           <>
             <h2 className={styles.listSectionTitle}>Features</h2>
+            <div className={styles.listSearchRow}>
+              <input
+                type="search"
+                className={styles.listSearchInput}
+                placeholder="Search features…"
+                value={featureListSearch}
+                onChange={(e) => setFeatureListSearch(e.target.value)}
+                aria-label="Search features in this workspace"
+              />
+            </div>
             {listError && (
               <div className={styles.listError} role="alert">
                 {listError}
@@ -1405,7 +1438,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               <div className={styles.listEmpty}>Loading features…</div>
             ) : featuresList.length === 0 ? (
               <div className={styles.listEmpty}>
-                No features yet. Create one to start the AI workflow.
+                {debouncedFeatureListSearch.trim()
+                  ? "No features match your search."
+                  : "No features yet. Create one to start the AI workflow."}
               </div>
             ) : (
               <ul className={styles.featureList}>
@@ -1428,6 +1463,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         ) : (
           <>
             <h2 className={styles.listSectionTitle}>Artifacts</h2>
+            <div className={styles.listSearchRow}>
+              <input
+                type="search"
+                className={styles.listSearchInput}
+                placeholder="Search artifacts…"
+                value={artifactListSearch}
+                onChange={(e) => setArtifactListSearch(e.target.value)}
+                aria-label="Search artifacts in this workspace"
+              />
+            </div>
             {artifactsError && (
               <div className={styles.listError} role="alert">
                 {artifactsError}
@@ -1437,8 +1482,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               <div className={styles.listEmpty}>Loading artifacts…</div>
             ) : workspaceArtifacts.length === 0 ? (
               <div className={styles.listEmpty}>
-                No artifacts in this workspace yet. Complete inference, competitor analysis, or PRD
-                generation on a feature.
+                {debouncedArtifactListSearch.trim()
+                  ? "No artifacts match your search."
+                  : "No artifacts in this workspace yet. Complete inference, competitor analysis, or PRD generation on a feature."}
               </div>
             ) : (
               <div className={styles.artifactsTableWrap}>

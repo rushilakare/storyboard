@@ -2,6 +2,8 @@
 
 ## 2026-03-23
 
+- **List + global search (metadata only):** Optional `q` on `GET` [`/api/workspaces`](src/app/api/workspaces/route.ts), [`/api/features`](src/app/api/features/route.ts), [`/api/knowledge`](src/app/api/knowledge/route.ts), [`/api/artifacts`](src/app/api/artifacts/route.ts), [`/api/workspaces/[id]/artifacts`](src/app/api/workspaces/[id]/artifacts/route.ts) filters with `ilike` on names/titles/kinds/status (not messages, artifact body, or chunk text). Shared helpers: [`escapeIlike.ts`](src/lib/search/escapeIlike.ts), [`artifactsFlatList.ts`](src/lib/search/artifactsFlatList.ts). Aggregated [`GET /api/search`](src/app/api/search/route.ts) (limit 10 per section, includes `href`). UI: debounced search on dashboard, workspaces, knowledge (with `?highlight=` scroll + row highlight), artifacts, workspace feature/artifact lists; [`GlobalSearch`](src/components/GlobalSearch.tsx) in sidebar with ⌘/Ctrl+K. Hook: [`useDebouncedValue`](src/lib/hooks/useDebouncedValue.ts).
+
 - **Login marketing column:** Desktop animated column uses `bg-background` + `border-r` (no purple gradient); logo keeps original SVG colors (`brightness-0 invert` removed). Footer links use `text-muted-foreground`; grid + blurs tuned for light panel (dark grid lines; `primary` glows). Mobile header logo stays larger (`max-h-14`, `max-w-sm`).
 
 - **Sidebar Speqtr logo size:** Logo uses full sidebar row width with `max-height: 52px` and `object-fit: contain` so the wordmark isn’t stuck at ~50×28px.

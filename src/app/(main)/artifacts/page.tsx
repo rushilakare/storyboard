@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 
 export interface ArtifactListItem {
   id: string;
@@ -44,37 +45,54 @@ export default function ArtifactsPage() {
   const [rows, setRows] = useState<ArtifactListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 250);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const qs = debouncedSearch.trim()
+        ? `?q=${encodeURIComponent(debouncedSearch.trim())}`
+        : '';
+      const res = await fetch(`/api/artifacts${qs}`);
+      const data = await res.json();
+      if (!res.ok) {
+        const message =
+          typeof data?.error === 'string' ? data.error : `Request failed (${res.status})`;
+        setError(message);
+        setRows([]);
+        return;
+      }
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error('Artifacts load error', e);
+      setError('Network error while loading artifacts.');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearch]);
 
   useEffect(() => {
-    async function load() {
-      setError(null);
-      try {
-        const res = await fetch('/api/artifacts');
-        const data = await res.json();
-        if (!res.ok) {
-          const message =
-            typeof data?.error === 'string' ? data.error : `Request failed (${res.status})`;
-          setError(message);
-          setRows([]);
-          return;
-        }
-        setRows(Array.isArray(data) ? data : []);
-      } catch (e) {
-        console.error('Artifacts load error', e);
-        setError('Network error while loading artifacts.');
-        setRows([]);
-      } finally {
-        setLoading(false);
-      }
-    }
     load();
-  }, []);
+  }, [load]);
 
   return (
     <div className={styles.container}>
       <header className={styles.header}>
         <h1 className={styles.title}>Artifacts</h1>
       </header>
+
+      <div className={styles.searchRow}>
+        <input
+          type="search"
+          className={styles.listSearchInput}
+          placeholder="Search by title, kind, feature, or workspace…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search artifacts"
+        />
+      </div>
 
       {error ? (
         <div className={styles.errorState} role="alert">
@@ -85,7 +103,11 @@ export default function ArtifactsPage() {
       {loading ? (
         <div className={styles.emptyState}>Loading artifacts…</div>
       ) : !error && rows.length === 0 ? (
-        <div className={styles.emptyState}>No artifacts yet. Run inference, competitor analysis, or generate a PRD on a feature.</div>
+        <div className={styles.emptyState}>
+          {debouncedSearch.trim()
+            ? 'No artifacts match your search.'
+            : 'No artifacts yet. Run inference, competitor analysis, or generate a PRD on a feature.'}
+        </div>
       ) : !error ? (
         <div className={styles.tableContainer}>
           <table className={styles.table}>

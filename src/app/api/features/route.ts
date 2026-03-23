@@ -1,4 +1,5 @@
 import { requireUser } from '@/lib/auth/require-user';
+import { ilikeContainsPattern } from '@/lib/search/escapeIlike';
 import { NextResponse, NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -6,6 +7,7 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const workspaceId = request.nextUrl.searchParams.get('workspaceId');
+  const q = request.nextUrl.searchParams.get('q')?.trim() ?? '';
 
   let query = auth.supabase
     .from('features')
@@ -14,6 +16,11 @@ export async function GET(request: NextRequest) {
 
   if (workspaceId) {
     query = query.eq('workspace_id', workspaceId);
+  }
+
+  if (q) {
+    const p = ilikeContainsPattern(q);
+    query = query.or(`name.ilike.${p},purpose.ilike.${p},requirements.ilike.${p}`);
   }
 
   const limit = request.nextUrl.searchParams.get('limit');

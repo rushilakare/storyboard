@@ -1,8 +1,8 @@
 import { requireUser } from '@/lib/auth/require-user';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireUser();
@@ -49,11 +49,21 @@ export async function GET(
   }
 
   const nameById = new Map((feats ?? []).map((f) => [f.id, f.name] as const));
-  const enriched = (rows ?? []).map((r) => ({
+  let enriched = (rows ?? []).map((r) => ({
     ...r,
     feature_name: nameById.get(r.feature_id) ?? null,
     workspace_id: workspaceId,
   }));
+
+  const q = request.nextUrl.searchParams.get('q')?.trim().toLowerCase() ?? '';
+  if (q) {
+    enriched = enriched.filter((r) => {
+      const title = (r.title ?? '').toLowerCase();
+      const kind = r.kind.toLowerCase();
+      const fn = (r.feature_name ?? '').toLowerCase();
+      return title.includes(q) || kind.includes(q) || fn.includes(q);
+    });
+  }
 
   return NextResponse.json(enriched);
 }

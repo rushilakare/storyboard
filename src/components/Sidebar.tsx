@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
+import GlobalSearch from '@/components/GlobalSearch';
 import styles from './Sidebar.module.css';
 
 export default function Sidebar() {
@@ -36,6 +37,8 @@ export default function Sidebar() {
           priority
         />
       </Link>
+
+      <GlobalSearch />
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Views</div>

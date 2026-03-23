@@ -11,7 +11,8 @@ import {
 } from '@/lib/knowledge/constants';
 import { extractKnowledgeText } from '@/lib/knowledge/extractText';
 import { embedAndInsertChunks } from '@/lib/knowledge/persistChunks';
-import { NextResponse } from 'next/server';
+import { ilikeContainsPattern } from '@/lib/search/escapeIlike';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 60;
 
@@ -57,17 +58,28 @@ async function finalizeDocument(
     .eq('id', documentId);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireUser();
   if (!auth.ok) return auth.response;
 
-  const { data, error } = await auth.supabase
+  const q = request.nextUrl.searchParams.get('q')?.trim() ?? '';
+
+  let query = auth.supabase
     .from('knowledge_documents')
     .select(
       'id, source_kind, filename, title, mime_type, byte_size, status, chunk_count, error_message, created_at',
     )
     .order('created_at', { ascending: false })
     .limit(200);
+
+  if (q) {
+    const p = ilikeContainsPattern(q);
+    query = query.or(
+      `filename.ilike.${p},title.ilike.${p},source_kind.ilike.${p},status.ilike.${p},mime_type.ilike.${p}`,
+    );
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

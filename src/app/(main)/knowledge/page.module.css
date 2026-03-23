@@ -32,6 +32,33 @@
   align-items: center;
 }
 
+.listSearchInput {
+  min-width: 200px;
+  flex: 1;
+  max-width: 400px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.listSearchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.listSearchInput:focus {
+  outline: none;
+  border-color: var(--text-muted);
+}
+
+.rowHighlighted {
+  outline: 2px solid color-mix(in srgb, var(--accent-color) 55%, transparent);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+}
+
 .btn {
   font-size: 13px;
   font-weight: 500;

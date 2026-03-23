@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 
 interface Workspace {
   id: string;
@@ -40,11 +41,16 @@ export default function WorkspacesPage() {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 250);
 
-  const fetchWorkspaces = async () => {
+  const fetchWorkspaces = useCallback(async () => {
     setLoadError(null);
     try {
-      const res = await fetch('/api/workspaces');
+      const qs = debouncedSearch.trim()
+        ? `?q=${encodeURIComponent(debouncedSearch.trim())}`
+        : '';
+      const res = await fetch(`/api/workspaces${qs}`);
       const data = await res.json();
       if (!res.ok) {
         const message =
@@ -61,11 +67,11 @@ export default function WorkspacesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchWorkspaces();
-  }, []);
+  }, [fetchWorkspaces]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -128,6 +134,17 @@ export default function WorkspacesPage() {
         </div>
       )}
 
+      <div className={styles.searchRow}>
+        <input
+          type="search"
+          className={styles.listSearchInput}
+          placeholder="Search workspaces by name or description…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search workspaces"
+        />
+      </div>
+
       {loadError && (
         <div className={styles.emptyState} role="alert">
           Could not load workspaces: {loadError}
@@ -142,7 +159,11 @@ export default function WorkspacesPage() {
       {loading ? (
         <div className={styles.emptyState}>Loading workspaces...</div>
       ) : !loadError && workspaces.length === 0 ? (
-        <div className={styles.emptyState}>No workspaces yet. Create one to get started!</div>
+        <div className={styles.emptyState}>
+          {debouncedSearch.trim()
+            ? 'No workspaces match your search.'
+            : 'No workspaces yet. Create one to get started!'}
+        </div>
       ) : !loadError ? (
         <div className={styles.grid}>
           {workspaces.map(ws => (
