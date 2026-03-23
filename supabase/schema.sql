@@ -1,4 +1,4 @@
--- Supabase Schema for Rushi PM Tool
+-- Supabase Schema for Speqtr
 -- Run in SQL Editor. Then run rls-policies.sql (IAM: authenticated users + workspace created_by).
 -- Existing DBs that already have `workspaces` without `created_by`: run migration-auth-iam.sql first.
 

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Eye, EyeOff, Mail, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Mail } from 'lucide-react';
 
 export type AnimatedCharactersLoginPageProps = {
   mode: 'signin' | 'signup';
@@ -423,13 +424,17 @@ export default function AnimatedCharactersLoginPage({
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="relative hidden lg:flex flex-col justify-between bg-gradient-to-br from-primary/90 via-primary to-primary/80 p-12 text-primary-foreground">
+      <div className="relative hidden lg:flex flex-col justify-between border-r border-border/50 bg-background p-12 text-foreground">
         <div className="relative z-20">
-          <div className="flex items-center gap-2 text-lg font-semibold">
-            <div className="size-8 rounded-lg bg-primary-foreground/10 backdrop-blur-sm flex items-center justify-center">
-              <Sparkles className="size-4" />
-            </div>
-            <span>Rushi PM</span>
+          <div className="flex w-full max-w-xl items-center pr-4">
+            <Image
+              src="/speqtr-logo.svg"
+              alt="Speqtr"
+              width={560}
+              height={140}
+              className="h-auto w-full max-h-[76px] object-contain object-left"
+              priority
+            />
           </div>
         </div>
 
@@ -795,33 +800,37 @@ export default function AnimatedCharactersLoginPage({
           </div>
         </div>
 
-        <div className="relative z-20 flex items-center gap-8 text-sm text-primary-foreground/60">
-          <a href="#" className="hover:text-primary-foreground transition-colors">
+        <div className="relative z-20 flex items-center gap-8 text-sm text-muted-foreground">
+          <a href="#" className="transition-colors hover:text-foreground">
             Privacy Policy
           </a>
-          <a href="#" className="hover:text-primary-foreground transition-colors">
+          <a href="#" className="transition-colors hover:text-foreground">
             Terms of Service
           </a>
-          <a href="#" className="hover:text-primary-foreground transition-colors">
+          <a href="#" className="transition-colors hover:text-foreground">
             Contact
           </a>
         </div>
 
         <div
-          className="absolute inset-0 opacity-50 bg-[linear-gradient(to_right,oklch(1_0_0_/_0.05)_1px,transparent_1px),linear-gradient(to_bottom,oklch(1_0_0_/_0.05)_1px,transparent_1px)] bg-[size:20px_20px]"
+          className="pointer-events-none absolute inset-0 opacity-60 bg-[linear-gradient(to_right,oklch(0_0_0_/_0.06)_1px,transparent_1px),linear-gradient(to_bottom,oklch(0_0_0_/_0.06)_1px,transparent_1px)] bg-[size:20px_20px] dark:bg-[linear-gradient(to_right,oklch(1_0_0_/_0.06)_1px,transparent_1px),linear-gradient(to_bottom,oklch(1_0_0_/_0.06)_1px,transparent_1px)]"
           aria-hidden
         />
-        <div className="absolute top-1/4 right-1/4 size-64 bg-primary-foreground/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 left-1/4 size-96 bg-primary-foreground/5 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute top-1/4 right-1/4 size-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-1/4 left-1/4 size-96 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
       <div className="flex min-h-screen items-center justify-center p-8 bg-background">
         <div className="w-full max-w-[420px]">
-          <div className="lg:hidden flex items-center justify-center gap-2 text-lg font-semibold mb-12">
-            <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Sparkles className="size-4 text-primary" />
-            </div>
-            <span>Rushi PM</span>
+          <div className="lg:hidden flex w-full items-center justify-center mb-12 px-1">
+            <Image
+              src="/speqtr-logo.svg"
+              alt="Speqtr"
+              width={400}
+              height={100}
+              className="h-auto max-h-14 w-full max-w-sm object-contain"
+              priority
+            />
           </div>
 
           {showCheckEmail && pendingConfirmationEmail ? (

@@ -8,9 +8,10 @@ const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Rushi PM Tool',
+  title: 'Speqtr',
   description:
-    'A minimal, linear-inspired PM application with multi-agent intelligence.',
+    'Speqtr — a linear-inspired PM workspace with multi-agent intelligence for features and PRDs.',
+  icons: { icon: '/speqtr-logo.svg' },
 };
 
 export default function RootLayout({

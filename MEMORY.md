@@ -2,6 +2,14 @@
 
 ## 2026-03-23
 
+- **Login marketing column:** Desktop animated column uses `bg-background` + `border-r` (no purple gradient); logo keeps original SVG colors (`brightness-0 invert` removed). Footer links use `text-muted-foreground`; grid + blurs tuned for light panel (dark grid lines; `primary` glows). Mobile header logo stays larger (`max-h-14`, `max-w-sm`).
+
+- **Sidebar Speqtr logo size:** Logo uses full sidebar row width with `max-height: 52px` and `object-fit: contain` so the wordmark isn’t stuck at ~50×28px.
+
+- **Rebrand to Speqtr:** Product title/metadata → **Speqtr** ([`layout.tsx`](src/app/layout.tsx)); favicon via [`public/speqtr-logo.svg`](public/speqtr-logo.svg). Sidebar ([`Sidebar.tsx`](src/components/Sidebar.tsx) + CSS) and login marketing column / mobile header ([`animated-characters-login-page.tsx`](src/components/ui/animated-characters-login-page.tsx)) use the logo. `package.json` / lock `name`: `speqtr`. [`schema.sql`](supabase/schema.sql) header comment updated. Root `speqtr logo.svg` removed after copy to `public/`.
+
+## 2026-03-23
+
 - **Vercel `/api/knowledge` + PDF:** Production failed loading `pdf-parse` with `ReferenceError: DOMMatrix is not defined` (pdfjs expects browser globals on Node). Added [`pdfDomPolyfill.ts`](src/lib/knowledge/pdfDomPolyfill.ts) (imported first from [`extractText.ts`](src/lib/knowledge/extractText.ts)) assigning `DOMMatrix`, `DOMPoint`, `DOMRect`, `Path2D`, `ImageData` from `@napi-rs/canvas` onto `globalThis` when missing.
 
 - **Debug session (7267bb) `/api/knowledge` GET:** Local repro logs showed `getClaims` OK (`hasSub: true`), `knowledge_documents` query OK with `rowCount: 2` — no code defect in auth or list path. Instrumentation in `require-user.ts` / `api/knowledge/route.ts` removed after analysis. Vercel-only issues would need prod DB migration, env parity, or fresh session cookie (not captured by local ingest).

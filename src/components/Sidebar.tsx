@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -25,10 +26,16 @@ export default function Sidebar() {
 
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.logo}>
-        <div className={styles.logoIcon}></div>
-        Rushi PM
-      </div>
+      <Link href="/workspaces" className={styles.logo}>
+        <Image
+          src="/speqtr-logo.svg"
+          alt="Speqtr"
+          width={400}
+          height={90}
+          className={styles.logoImage}
+          priority
+        />
+      </Link>
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Views</div>
