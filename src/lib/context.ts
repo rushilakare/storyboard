@@ -7,6 +7,7 @@ import {
   COMPETITOR_OUTPUT_DISCIPLINE,
   INFERENCE_CLARIFYING_JSON_RULES,
   INFERENCE_OUTPUT_DISCIPLINE,
+  INFERENCE_REVISION_FROM_TRANSCRIPT,
   PRD_OUTPUT_REQUIREMENTS,
   PRD_PRODUCT_CONTEXT,
   PRD_REVISION_INSTRUCTION,
@@ -87,6 +88,8 @@ function buildInferenceSystem(
   return [
     'You are an expert product management assistant simulating an inference agent for a linear-inspired tool.',
     INFERENCE_OUTPUT_DISCIPLINE,
+    '',
+    INFERENCE_REVISION_FROM_TRANSCRIPT,
     '',
     INFERENCE_CLARIFYING_JSON_RULES,
     '',

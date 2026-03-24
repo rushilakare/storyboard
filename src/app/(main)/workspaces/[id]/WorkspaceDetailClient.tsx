@@ -254,6 +254,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [savedPrd, setSavedPrd] = useState(false);
   const [clarifyingOpen, setClarifyingOpen] = useState(false);
   const [pendingClarifyingQuestions, setPendingClarifyingQuestions] = useState<ClarifyingQuestion[]>([]);
+  const [inferenceReviseHint, setInferenceReviseHint] = useState(false);
+  const [focusComposerToken, setFocusComposerToken] = useState(0);
   const [featureStatus, setFeatureStatus] = useState<string | null>(null);
   const [prdRecoveryPromptOpen, setPrdRecoveryPromptOpen] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
@@ -872,13 +874,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       .reverse()
       .find((m) => m.role === "agent" && m.agentType !== "system");
 
-    addMessage({ id: Date.now().toString(), role: "user", content: text });
-
-    const fid = featureId;
-    if (fid) {
-      await persistMessage(fid, "user", text);
-    }
-
     const endpoint =
       lastAgentMsg?.agentType === "competitor"
         ? "/api/agents/competitor"
@@ -889,6 +884,25 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const isPrd = endpoint === "/api/agents/prd";
     const agentMsgId = Date.now().toString() + "-agent";
     const agentType = lastAgentMsg?.agentType || "inference";
+
+    setInferenceReviseHint(false);
+
+    if (!isPrd && agentType === "inference") {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.role === "agent" && m.agentType === "inference" && m.status === "needs_review"
+            ? { ...m, status: "done" as const }
+            : m,
+        ),
+      );
+    }
+
+    addMessage({ id: Date.now().toString(), role: "user", content: text });
+
+    const fid = featureId;
+    if (fid) {
+      await persistMessage(fid, "user", text);
+    }
 
     if (!isPrd) {
       if (agentType === "inference") {
@@ -1344,6 +1358,20 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setPendingClarifyingQuestions([]);
   };
 
+  const handleUpdateInferenceInstead = useCallback(() => {
+    const infMsg = messagesRef.current
+      .slice()
+      .reverse()
+      .find((m) => m.role === "agent" && m.agentType === "inference" && m.status === "needs_review");
+    if (infMsg) {
+      clarifyShownForRef.current.delete(infMsg.id);
+    }
+    setClarifyingOpen(false);
+    setPendingClarifyingQuestions([]);
+    setInferenceReviseHint(true);
+    setFocusComposerToken((t) => t + 1);
+  }, []);
+
   const handleViewDocument = () => {
     setDocumentPanelKind("prd");
     setIsSplitView(true);
@@ -1584,6 +1612,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 clarifyingQuestions={pendingClarifyingQuestions}
                 onClarifyComplete={handleClarifyComplete}
                 onClarifyClose={handleClarifyClose}
+                onUpdateInference={handleUpdateInferenceInstead}
+                inferenceReviseHint={inferenceReviseHint}
+                focusComposerToken={focusComposerToken}
               />
             ) : (
               <div className={styles.emptyState}>Loading…</div>

@@ -108,7 +108,9 @@
   margin-top: 12px;
 }
 
-.reviseBtn, .approveBtn {
+.reviseBtn,
+.updateInferenceBtn,
+.approveBtn {
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
@@ -116,13 +118,15 @@
   cursor: pointer;
 }
 
-.reviseBtn {
+.reviseBtn,
+.updateInferenceBtn {
   background-color: transparent;
   border: 1px solid var(--border-highlight);
   color: var(--text-secondary);
 }
 
-.reviseBtn:hover {
+.reviseBtn:hover,
+.updateInferenceBtn:hover {
   background-color: var(--bg-surface-hover);
   color: var(--text-primary);
 }

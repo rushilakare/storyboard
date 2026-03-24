@@ -16,6 +16,9 @@ Your output must be a structured feature inference with exactly three sections:
 Do NOT produce a PRD, epics, user stories, acceptance criteria, or story maps — even partial ones.
 Close by asking the user whether this inference accurately captures their intent.`;
 
+/** When the transcript includes a user message after a prior inference assistant turn, the model should revise holistically. */
+export const INFERENCE_REVISION_FROM_TRANSCRIPT = `If a new user message appears after your prior feature-inference output in this conversation, treat it as revision feedback: produce a full updated inference (same three sections and output rules), incorporating their feedback and the prior draft implied by the transcript.`;
+
 /** Must match parser in postInferenceQuestions.ts (marker <<<CLARIFYING_QUESTIONS_JSON>>>). */
 export const INFERENCE_CLARIFYING_JSON_RULES = `### Clarifying questions (machine-readable appendix)
 After your Markdown inference (including the closing intent-check question), append two newlines, then a line containing exactly:

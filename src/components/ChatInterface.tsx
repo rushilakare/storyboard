@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./ChatInterface.module.css";
 import ClarifyingQuestionsModal from "./ClarifyingQuestionsModal";
 import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferenceQuestions";
@@ -23,6 +23,11 @@ interface ChatProps {
   clarifyingQuestions?: ClarifyingQuestion[];
   onClarifyComplete?: (answers: ClarificationAnswers) => void;
   onClarifyClose?: () => void;
+  onUpdateInference?: () => void;
+  /** When true, composer shows revision-oriented placeholder until next send. */
+  inferenceReviseHint?: boolean;
+  /** Increment to focus the composer (e.g. after closing clarifying modal for rework). */
+  focusComposerToken?: number;
 }
 
 export default function ChatInterface({
@@ -36,8 +41,27 @@ export default function ChatInterface({
   clarifyingQuestions = [],
   onClarifyComplete,
   onClarifyClose,
+  onUpdateInference,
+  inferenceReviseHint = false,
+  focusComposerToken = 0,
 }: ChatProps) {
   const [inputText, setInputText] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastFocusTokenRef = useRef(0);
+
+  useEffect(() => {
+    if (focusComposerToken <= 0 || focusComposerToken === lastFocusTokenRef.current) return;
+    lastFocusTokenRef.current = focusComposerToken;
+    if (clarifyingOpen) return;
+    textareaRef.current?.focus();
+  }, [focusComposerToken, clarifyingOpen]);
+
+  const placeholder =
+    isLoading
+      ? "Please wait..."
+      : inferenceReviseHint
+        ? "Describe what to change in the feature inference…"
+        : "Type a message to revise…";
 
   const handleSend = () => {
     if (!inputText.trim() || isLoading) return;
@@ -83,6 +107,15 @@ export default function ChatInterface({
                         {msg.agentType === "inference"
                           ? "View feature inference"
                           : "View competitor analysis"}
+                      </button>
+                    ) : null}
+                    {msg.agentType === "inference" && onUpdateInference ? (
+                      <button
+                        type="button"
+                        className={styles.updateInferenceBtn}
+                        onClick={onUpdateInference}
+                      >
+                        Update feature inference
                       </button>
                     ) : null}
                     <button
@@ -158,9 +191,10 @@ export default function ChatInterface({
       {!clarifyingOpen && (
         <div className={styles.inputArea}>
           <div className={styles.inputWrapper}>
-            <textarea 
-              className={styles.chatInput} 
-              placeholder={isLoading ? "Please wait..." : "Type a message to revise..."} 
+            <textarea
+              ref={textareaRef}
+              className={styles.chatInput}
+              placeholder={placeholder}
               rows={1}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}

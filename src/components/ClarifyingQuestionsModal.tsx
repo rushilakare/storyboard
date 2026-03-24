@@ -8,7 +8,11 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ClarifyingQuestionsModal({ questions, onComplete, onClose }: Props) {
+export default function ClarifyingQuestionsModal({
+  questions,
+  onComplete,
+  onClose,
+}: Props) {
   const questionsKey = questions.map((q) => q.id).join("|");
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<ClarificationAnswers>({});
