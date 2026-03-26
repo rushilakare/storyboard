@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import styles from './page.module.css';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
+import { ArtifactListExportSplitButton } from '@/components/DocumentExportSplitButton';
 
 export interface ArtifactListItem {
   id: string;
@@ -118,6 +119,7 @@ export default function ArtifactsPage() {
                 <th>Feature</th>
                 <th>Workspace</th>
                 <th>Updated</th>
+                <th className={styles.actionsCell}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -155,6 +157,19 @@ export default function ArtifactsPage() {
                       )}
                     </td>
                     <td className={styles.date}>{timeAgo(r.updated_at)}</td>
+                    <td className={styles.actionsCell}>
+                      {r.feature_id ? (
+                        <ArtifactListExportSplitButton
+                          featureId={r.feature_id}
+                          artifactId={r.id}
+                          kind={r.kind}
+                          title={r.title}
+                          version={r.version}
+                        />
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 );
               })}

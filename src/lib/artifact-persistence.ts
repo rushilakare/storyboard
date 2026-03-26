@@ -306,6 +306,45 @@ export async function resolvePrdContentForFeature(
   return data?.content ?? '';
 }
 
+export type FeatureArtifactSummaryRow = Pick<
+  FeatureArtifactRow,
+  | 'id'
+  | 'feature_id'
+  | 'kind'
+  | 'title'
+  | 'version'
+  | 'updated_at'
+  | 'created_at'
+  | 'is_draft'
+>;
+
+const ARTIFACT_SUMMARY_SELECT =
+  'id, feature_id, kind, title, version, updated_at, created_at, is_draft';
+
+/** List artifacts without `body` (for pickers / modals). */
+export async function listFeatureArtifactsSummary(
+  sb: AppSupabase,
+  featureId: string,
+  kind?: string,
+): Promise<FeatureArtifactSummaryRow[]> {
+  let q = sb
+    .from('feature_artifacts')
+    .select(ARTIFACT_SUMMARY_SELECT)
+    .eq('feature_id', featureId);
+  if (kind) {
+    q = q
+      .eq('kind', kind)
+      .order('version', { ascending: false })
+      .order('created_at', { ascending: false });
+  } else {
+    q = q.order('created_at', { ascending: false });
+  }
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as FeatureArtifactSummaryRow[];
+}
+
 export async function listFeatureArtifacts(
   sb: AppSupabase,
   featureId: string,

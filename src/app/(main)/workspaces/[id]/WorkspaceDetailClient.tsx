@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, useEffect, use, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
+import {
+  useState,
+  useEffect,
+  use,
+  useRef,
+  useCallback,
+  useMemo,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
@@ -9,6 +18,16 @@ import NewFeatureModal from "@/components/NewFeatureModal";
 import ChatInterface, { Message } from "@/components/ChatInterface";
 import PrdRecoveryBanner from "@/components/PrdRecoveryBanner";
 import PrdDocumentEditor from "@/components/PrdDocumentEditor";
+import {
+  ArtifactListExportSplitButton,
+  DocumentExportSplitButton,
+} from "@/components/DocumentExportSplitButton";
+import FeatureArtifactsModal, {
+  type FeatureArtifactSummary,
+} from "@/components/FeatureArtifactsModal";
+import { buildArtifactFilename } from "@/lib/artifactExport";
+import { deriveDocumentTitle } from "@/lib/deriveDocumentTitle";
+import { X } from "lucide-react";
 import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferenceQuestions";
 import {
   formatClarificationSummary,
@@ -204,6 +223,12 @@ function workspaceArtifactKindLabel(kind: string) {
   }
 }
 
+function panelKindFallbackLabel(kind: DocumentPanelKind): string {
+  if (kind === "prd") return "PRD";
+  if (kind === "inference") return "Feature inference";
+  return "Competitor analysis";
+}
+
 interface WorkspaceArtifactRow {
   id: string;
   feature_id: string;
@@ -259,8 +284,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [featureStatus, setFeatureStatus] = useState<string | null>(null);
   const [prdRecoveryPromptOpen, setPrdRecoveryPromptOpen] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [artifactsModalOpen, setArtifactsModalOpen] = useState(false);
 
   const streamingRef = useRef(false);
+  const prdContentDirtyRef = useRef(false);
   const featureIdRef = useRef<string | null>(null);
   const prdStreamingBufferRef = useRef<string>("");
   // Tracks which inference message IDs already triggered the clarifying modal
@@ -547,6 +574,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setChatStarted(false);
     setIsSplitView(false);
     setSavedPrd(false);
+    prdContentDirtyRef.current = false;
     setIsModalOpen(false);
     setClarifyingOpen(false);
     setPendingClarifyingQuestions([]);
@@ -746,6 +774,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           }
         }
 
+        prdContentDirtyRef.current = false;
         setChatStarted(true);
         setIsModalOpen(false);
       } catch {
@@ -1000,6 +1029,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       if (isPrd) {
         try {
           await finalizePrdAndPersistAssistant(fid, agentContent);
+          prdContentDirtyRef.current = false;
           setSavedPrd(true);
         } catch (pe) {
           console.error("Failed to save PRD after revision", pe);
@@ -1170,6 +1200,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 body: JSON.stringify({ status: "done" }),
               });
               setFeatureStatus("done");
+              prdContentDirtyRef.current = false;
               setSavedPrd(true);
             } catch (e) {
               console.error("Failed to auto-save PRD", e);
@@ -1232,6 +1263,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           body: JSON.stringify({ status: "done" }),
         });
         setFeatureStatus("done");
+        prdContentDirtyRef.current = false;
         setSavedPrd(true);
         setPrdRecoveryPromptOpen(false);
       }
@@ -1279,6 +1311,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           body: JSON.stringify({ status: "done" }),
         });
         setFeatureStatus("done");
+        prdContentDirtyRef.current = false;
         setSavedPrd(true);
         setPrdRecoveryPromptOpen(false);
       }
@@ -1391,6 +1424,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: prdDocument, replaceLatest: true }),
       });
+      prdContentDirtyRef.current = false;
       setSavedPrd(true);
       setTimeout(() => setSavedPrd(false), 2000);
     } catch (e) {
@@ -1399,6 +1433,74 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       setSavingPrd(false);
     }
   };
+
+  const handleOpenArtifactFromModal = useCallback(
+    async (row: FeatureArtifactSummary) => {
+      const fid = featureId;
+      if (!fid) return;
+      if (documentPanelKind === "prd" && prdContentDirtyRef.current) {
+        if (
+          !window.confirm(
+            "Discard unsaved PRD changes and open this artifact?",
+          )
+        ) {
+          return;
+        }
+      }
+      const res = await fetch(`/api/features/${fid}/artifacts/${row.id}`);
+      const data = (await res.json()) as {
+        body?: string;
+        kind?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        window.alert(
+          typeof data.error === "string" ? data.error : "Failed to load artifact",
+        );
+        return;
+      }
+      const body = data.body ?? "";
+      const k = data.kind ?? row.kind;
+      if (k === "prd") {
+        setPrdDocument(body);
+        prdContentDirtyRef.current = false;
+        setSavedPrd(true);
+        setDocumentPanelKind("prd");
+      } else if (k === "inference") {
+        setInferenceDocument(body);
+        setDocumentPanelKind("inference");
+      } else if (k === "competitor") {
+        setCompetitorDocument(body);
+        setDocumentPanelKind("competitor");
+      } else {
+        window.alert("Unknown artifact type.");
+        return;
+      }
+      setIsSplitView(true);
+      setArtifactsModalOpen(false);
+    },
+    [featureId, documentPanelKind],
+  );
+
+  const panelMarkdown = useMemo(() => {
+    if (documentPanelKind === "prd") return prdDocument;
+    if (documentPanelKind === "inference") return inferenceDocument;
+    return competitorDocument;
+  }, [documentPanelKind, prdDocument, inferenceDocument, competitorDocument]);
+
+  const panelDerivedTitle = useMemo(
+    () =>
+      deriveDocumentTitle(panelMarkdown, [
+        featureData?.name,
+        panelKindFallbackLabel(documentPanelKind),
+      ]),
+    [panelMarkdown, featureData?.name, documentPanelKind],
+  );
+
+  const panelExportFilename = useMemo(
+    () => buildArtifactFilename(documentPanelKind, panelDerivedTitle, 0),
+    [documentPanelKind, panelDerivedTitle],
+  );
 
   // ── Render: Feature List vs Chat Detail ───────────────────────────
   const showList = !featureParam && !chatStarted;
@@ -1523,6 +1625,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                       <th>Title</th>
                       <th>Feature</th>
                       <th>Updated</th>
+                      <th className={styles.artifactsTableActionsCell}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1546,6 +1649,15 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                           </Link>
                         </td>
                         <td className={styles.artifactDate}>{listTimeAgo(r.updated_at)}</td>
+                        <td className={styles.artifactsTableActionsCell}>
+                          <ArtifactListExportSplitButton
+                            featureId={r.feature_id}
+                            artifactId={r.id}
+                            kind={r.kind}
+                            title={r.title}
+                            version={r.version}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1573,6 +1685,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           onSubmit={handleStartFeature}
         />
       )}
+      {featureId ? (
+        <FeatureArtifactsModal
+          open={artifactsModalOpen}
+          onClose={() => setArtifactsModalOpen(false)}
+          featureId={featureId}
+          kindLabel={workspaceArtifactKindLabel}
+          formatTimeAgo={listTimeAgo}
+          onOpenArtifact={handleOpenArtifactFromModal}
+        />
+      ) : null}
 
       <div className={`${styles.layout} ${isSplitView ? styles.splitActive : ""}`}>
         <div className={styles.chatPane}>
@@ -1588,15 +1710,26 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 {featureData?.name || "Feature Conversation"}
               </h2>
             </div>
-            {isSplitView && (
-              <button
-                type="button"
-                onClick={() => setIsSplitView(false)}
-                className={styles.mockBtn}
-              >
-                Collapse Document
-              </button>
-            )}
+            <div className={styles.chatPaneHeaderRight}>
+              {!isSplitView && featureId && chatStarted ? (
+                <button
+                  type="button"
+                  className={styles.mockBtn}
+                  onClick={() => setArtifactsModalOpen(true)}
+                >
+                  Artifacts
+                </button>
+              ) : null}
+              {isSplitView ? (
+                <button
+                  type="button"
+                  onClick={() => setIsSplitView(false)}
+                  className={styles.mockBtn}
+                >
+                  Collapse Document
+                </button>
+              ) : null}
+            </div>
           </header>
 
           <div className={styles.chatWrapperOuter}>
@@ -1624,23 +1757,45 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
         <div className={styles.editorPane}>
           <header className={styles.paneHeader}>
-            <h2 className={styles.paneTitle}>
-              {documentPanelKind === "prd"
-                ? "PRD Editor"
-                : documentPanelKind === "inference"
-                  ? "Feature inference"
-                  : "Competitor analysis"}
-            </h2>
-            {documentPanelKind === "prd" ? (
-              <button
-                type="button"
-                className={styles.mockBtn}
-                onClick={handleSavePrd}
-                disabled={savingPrd || !featureId}
-              >
-                {savingPrd ? "Saving..." : savedPrd ? "✓ Saved" : "Save Changes"}
-              </button>
-            ) : null}
+            <div className={styles.editorPaneHeaderInner}>
+              <h2 className={styles.editorPaneTitleWithFormat}>
+                <span className={styles.docPanelKindBadge}>
+                  {workspaceArtifactKindLabel(documentPanelKind)}
+                </span>
+                <span className={styles.docPanelDerivedTitle}>
+                  {panelDerivedTitle}
+                </span>
+                <span className={styles.formatDot} aria-hidden>
+                  ·
+                </span>
+                <span className={styles.docPanelFormatLabel}>Markdown</span>
+              </h2>
+              <div className={styles.editorPaneToolbarRight}>
+                {documentPanelKind === "prd" ? (
+                  <button
+                    type="button"
+                    className={styles.mockBtn}
+                    onClick={handleSavePrd}
+                    disabled={savingPrd || !featureId}
+                  >
+                    {savingPrd ? "Saving..." : savedPrd ? "✓ Saved" : "Save Changes"}
+                  </button>
+                ) : null}
+                <DocumentExportSplitButton
+                  markdown={panelMarkdown}
+                  filename={panelExportFilename}
+                  featureId={featureId}
+                />
+                <button
+                  type="button"
+                  className={styles.closeDocBtn}
+                  aria-label="Close document"
+                  onClick={() => setIsSplitView(false)}
+                >
+                  <X size={18} strokeWidth={2} aria-hidden />
+                </button>
+              </div>
+            </div>
           </header>
           {documentPanelKind === "prd" && streamError ? (
             <div className={styles.streamError} role="alert">
@@ -1673,6 +1828,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 documentPanelKind === "prd"
                   ? (md) => {
                       setPrdDocument(md);
+                      prdContentDirtyRef.current = true;
                       setSavedPrd(false);
                     }
                   : undefined

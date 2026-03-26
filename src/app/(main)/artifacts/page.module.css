@@ -77,6 +77,12 @@
   background-color: var(--bg-surface-hover);
 }
 
+.actionsCell {
+  vertical-align: middle;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .kindBadge {
   display: inline-block;
   padding: 2px 8px;

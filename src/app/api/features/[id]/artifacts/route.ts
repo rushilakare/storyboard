@@ -1,4 +1,7 @@
-import { listFeatureArtifacts } from '@/lib/artifact-persistence';
+import {
+  listFeatureArtifacts,
+  listFeatureArtifactsSummary,
+} from '@/lib/artifact-persistence';
 import { requireUser } from '@/lib/auth/require-user';
 import { NextResponse, NextRequest } from 'next/server';
 
@@ -11,13 +14,20 @@ export async function GET(
 
   const { id: featureId } = await params;
   const kind = request.nextUrl.searchParams.get('kind') ?? undefined;
+  const summary = request.nextUrl.searchParams.get('summary') === '1';
 
   try {
-    const rows = await listFeatureArtifacts(
-      auth.supabase,
-      featureId,
-      kind ?? undefined,
-    );
+    const rows = summary
+      ? await listFeatureArtifactsSummary(
+          auth.supabase,
+          featureId,
+          kind ?? undefined,
+        )
+      : await listFeatureArtifacts(
+          auth.supabase,
+          featureId,
+          kind ?? undefined,
+        );
     return NextResponse.json(rows);
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to list artifacts';
