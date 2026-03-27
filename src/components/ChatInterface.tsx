@@ -6,7 +6,7 @@ import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferen
 export interface Message {
   id: string;
   role: "user" | "agent";
-  agentType?: "inference" | "competitor" | "prd" | "system";
+  agentType?: "inference" | "competitor" | "prd" | "system" | "issues_prompt" | "discussion";
   content: string;
   status?: "pending" | "done" | "needs_review";
   clarifyingQuestions?: ClarifyingQuestion[];
@@ -28,6 +28,12 @@ interface ChatProps {
   inferenceReviseHint?: boolean;
   /** Increment to focus the composer (e.g. after closing clarifying modal for rework). */
   focusComposerToken?: number;
+  /** Overrides default revise placeholder (e.g. after issues workflow). */
+  composerPlaceholder?: string;
+  /** Clarifying modal opened before the first inference draft. */
+  clarifyingPreInference?: boolean;
+  /** Skip all pre-inference questions and proceed to inference. */
+  onClarifySkipAll?: () => void;
 }
 
 export default function ChatInterface({
@@ -44,6 +50,9 @@ export default function ChatInterface({
   onUpdateInference,
   inferenceReviseHint = false,
   focusComposerToken = 0,
+  composerPlaceholder,
+  clarifyingPreInference = false,
+  onClarifySkipAll,
 }: ChatProps) {
   const [inputText, setInputText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -61,7 +70,7 @@ export default function ChatInterface({
       ? "Please wait..."
       : inferenceReviseHint
         ? "Describe what to change in the feature inference…"
-        : "Type a message to revise…";
+        : (composerPlaceholder ?? "Type a message to revise…");
 
   const handleSend = () => {
     if (!inputText.trim() || isLoading) return;
@@ -79,6 +88,7 @@ export default function ChatInterface({
   return (
     <div className={styles.chatContainer}>
       <div className={styles.messageList}>
+        <div className={styles.messageListColumn}>
         {messages.map((msg) => (
           <div key={msg.id} className={`${styles.messageBox} ${msg.role === "user" ? styles.userMsg : styles.agentMsg}`}>
             <div className={styles.avatar}>
@@ -87,7 +97,17 @@ export default function ChatInterface({
             <div className={styles.messageContent}>
               <div className={styles.messageHeader}>
                 <span className={styles.senderName}>
-                  {msg.role === "user" ? "You" : (msg.agentType === "prd" ? "Document Agent" : msg.agentType === "competitor" ? "Competitor Agent" : msg.agentType === "system" ? "System" : "Product AI")}
+                  {msg.role === "user"
+                    ? "You"
+                    : msg.agentType === "prd"
+                      ? "Document Agent"
+                      : msg.agentType === "competitor"
+                        ? "Competitor Agent"
+                        : msg.agentType === "system"
+                          ? "System"
+                          : msg.agentType === "discussion"
+                            ? "Assistant"
+                            : "Product AI"}
                 </span>
               </div>
               <div className={styles.messageText}>
@@ -127,6 +147,36 @@ export default function ChatInterface({
                     </button>
                   </div>
                 )}
+
+              {msg.status === "needs_review" && !isLoading && msg.agentType === "issues_prompt" && (
+                <div className={styles.actions}>
+                  {onViewAgentDocument ? (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.reviseBtn}
+                        onClick={() => onViewAgentDocument("inference")}
+                      >
+                        View feature inference
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.reviseBtn}
+                        onClick={() => onViewAgentDocument("competitor")}
+                      >
+                        View competitor analysis
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={styles.approveBtn}
+                    onClick={() => onApprove(msg.id, "issues_prompt")}
+                  >
+                    Yes, generate issues
+                  </button>
+                </div>
+              )}
 
               {msg.status === "needs_review" && !isLoading && msg.agentType === "prd" && (
                 <div className={styles.actions}>
@@ -178,6 +228,7 @@ export default function ChatInterface({
              </div>
           </div>
         )}
+        </div>
       </div>
 
       {clarifyingOpen && onClarifyComplete && onClarifyClose && (
@@ -185,6 +236,8 @@ export default function ChatInterface({
           questions={clarifyingQuestions}
           onComplete={onClarifyComplete}
           onClose={onClarifyClose}
+          preInference={clarifyingPreInference}
+          onSkipAll={clarifyingPreInference ? onClarifySkipAll : undefined}
         />
       )}
 

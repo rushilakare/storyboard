@@ -1,11 +1,13 @@
-import type { Metadata } from 'next';
-import { Inter, Geist } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Geist } from 'next/font/google';
 import './globals.css';
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
-const inter = Inter({ subsets: ['latin'] });
+export const viewport: Viewport = {
+  colorScheme: 'light',
+};
 
 export const metadata: Metadata = {
   title: 'Speqtr',
@@ -20,7 +22,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn(inter.className, "font-sans", geist.variable)}>
+    <html
+      lang="en"
+      className={cn(geist.variable, geist.className, 'font-sans antialiased')}
+    >
       <body suppressHydrationWarning>{children}</body>
     </html>
   );

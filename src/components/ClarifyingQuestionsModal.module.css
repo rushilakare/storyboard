@@ -5,14 +5,22 @@
 }
 
 .modal {
-  background-color: #1e1e1e;
+  background-color: var(--bg-surface);
   border: 1px solid var(--border-highlight);
   border-radius: 10px;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   max-height: 50vh;
   overflow: hidden;
+}
+
+.preInferenceNote {
+  margin: 0;
+  padding: 12px 20px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
 /* ── Header ─────────────────────────────────────────── */
@@ -286,6 +294,21 @@
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.skipAllBtn {
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 5px;
+  border: 1px solid var(--border-highlight);
+  background-color: var(--bg-surface);
+  transition: color 0.12s, background-color 0.12s;
+}
+
+.skipAllBtn:hover {
+  background-color: var(--bg-surface-hover);
 }
 
 .skipBtn {

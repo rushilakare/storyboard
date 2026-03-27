@@ -281,6 +281,26 @@ export async function getLatestCompletedPrdRow(
   return data as FeatureArtifactRow;
 }
 
+/** Latest completed inference or competitor artifact (versioned). */
+export async function getLatestCompletedArtifactByKind(
+  sb: AppSupabase,
+  featureId: string,
+  kind: typeof ARTIFACT_KIND_INFERENCE | typeof ARTIFACT_KIND_COMPETITOR,
+): Promise<FeatureArtifactRow | null> {
+  const { data, error } = await sb
+    .from('feature_artifacts')
+    .select()
+    .eq('feature_id', featureId)
+    .eq('kind', kind)
+    .eq('is_draft', false)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data as FeatureArtifactRow;
+}
+
 export async function getLatestCompletedPrdContent(
   sb: AppSupabase,
   featureId: string,

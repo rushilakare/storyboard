@@ -131,7 +131,9 @@ Deliver a single Markdown document with two parts, in this order:
    - Acceptance criteria — numbered, each written as a testable condition (Given / When / Then preferred)
    - Notes — dependencies, risks, or technical flags only; omit if none
 
-**Format:** Raw Markdown only. Use headers, tables, and code blocks where they aid comprehension. Do not produce DOCX or add decorative formatting that carries no information.`;
+**Format:** Raw Markdown only. Use headers, tables, and code blocks where they aid comprehension. Do not produce DOCX or add decorative formatting that carries no information.
+
+Place these HTML comments exactly once for automated issue creation: \`<!-- speqtr:stories-start -->\` on its own line immediately before the User stories section, and \`<!-- speqtr:stories-end -->\` on its own line after the last user story.`;
 
 export const PRD_REVISION_INSTRUCTION = `### Revision mode
 The user's message contains revision feedback. Produce a complete, self-contained replacement PRD — not a diff, not a summary of changes, not a partial update.

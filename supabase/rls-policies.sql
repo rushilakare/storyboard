@@ -7,6 +7,7 @@ alter table features enable row level security;
 alter table prd_documents enable row level security;
 alter table feature_messages enable row level security;
 alter table feature_artifacts enable row level security;
+alter table feature_issues enable row level security;
 alter table knowledge_documents enable row level security;
 alter table knowledge_chunks enable row level security;
 
@@ -232,6 +233,54 @@ create policy "feature_artifacts_delete_own" on feature_artifacts for delete to 
       select 1 from features f
       join workspaces w on w.id = f.workspace_id
       where f.id = feature_artifacts.feature_id and w.created_by = auth.uid()
+    )
+  );
+
+drop policy if exists "feature_issues_select_own" on feature_issues;
+drop policy if exists "feature_issues_insert_own" on feature_issues;
+drop policy if exists "feature_issues_update_own" on feature_issues;
+drop policy if exists "feature_issues_delete_own" on feature_issues;
+
+create policy "feature_issues_select_own" on feature_issues for select to authenticated
+  using (
+    exists (
+      select 1 from features f
+      join workspaces w on w.id = f.workspace_id
+      where f.id = feature_issues.feature_id and w.created_by = auth.uid()
+    )
+  );
+
+create policy "feature_issues_insert_own" on feature_issues for insert to authenticated
+  with check (
+    exists (
+      select 1 from features f
+      join workspaces w on w.id = f.workspace_id
+      where f.id = feature_id and w.created_by = auth.uid()
+    )
+  );
+
+create policy "feature_issues_update_own" on feature_issues for update to authenticated
+  using (
+    exists (
+      select 1 from features f
+      join workspaces w on w.id = f.workspace_id
+      where f.id = feature_issues.feature_id and w.created_by = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from features f
+      join workspaces w on w.id = f.workspace_id
+      where f.id = feature_id and w.created_by = auth.uid()
+    )
+  );
+
+create policy "feature_issues_delete_own" on feature_issues for delete to authenticated
+  using (
+    exists (
+      select 1 from features f
+      join workspaces w on w.id = f.workspace_id
+      where f.id = feature_issues.feature_id and w.created_by = auth.uid()
     )
   );
 

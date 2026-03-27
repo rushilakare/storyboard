@@ -154,6 +154,89 @@ export type Database = {
           },
         ];
       };
+      feature_issues: {
+        Row: {
+          id: string;
+          feature_id: string;
+          parent_id: string | null;
+          type: 'epic' | 'story';
+          issue_key: string;
+          title: string;
+          description: string;
+          acceptance_criteria: string[];
+          status:
+            | 'open'
+            | 'in_progress'
+            | 'in_review'
+            | 'done'
+            | 'blocked'
+            | 'cancelled';
+          priority: 'lowest' | 'low' | 'medium' | 'high' | 'highest';
+          due_date: string | null;
+          generated_from: 'inference_competitor' | 'manual' | 'prd_import' | null;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          feature_id: string;
+          parent_id?: string | null;
+          type: 'epic' | 'story';
+          issue_key: string;
+          title: string;
+          description?: string;
+          acceptance_criteria?: string[];
+          status?:
+            | 'open'
+            | 'in_progress'
+            | 'in_review'
+            | 'done'
+            | 'blocked'
+            | 'cancelled';
+          priority?: 'lowest' | 'low' | 'medium' | 'high' | 'highest';
+          due_date?: string | null;
+          generated_from?: 'inference_competitor' | 'manual' | 'prd_import' | null;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          parent_id?: string | null;
+          issue_key?: string;
+          title?: string;
+          description?: string;
+          acceptance_criteria?: string[];
+          status?:
+            | 'open'
+            | 'in_progress'
+            | 'in_review'
+            | 'done'
+            | 'blocked'
+            | 'cancelled';
+          priority?: 'lowest' | 'low' | 'medium' | 'high' | 'highest';
+          due_date?: string | null;
+          generated_from?: 'inference_competitor' | 'manual' | 'prd_import' | null;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'feature_issues_feature_id_fkey';
+            columns: ['feature_id'];
+            isOneToOne: false;
+            referencedRelation: 'features';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'feature_issues_parent_id_fkey';
+            columns: ['parent_id'];
+            isOneToOne: false;
+            referencedRelation: 'feature_issues';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       feature_messages: {
         Row: {
           id: string;
@@ -343,6 +426,7 @@ export type Workspace = Database['public']['Tables']['workspaces']['Row'];
 export type Feature = Database['public']['Tables']['features']['Row'];
 export type PrdDocument = Database['public']['Tables']['prd_documents']['Row'];
 export type FeatureArtifact = Database['public']['Tables']['feature_artifacts']['Row'];
+export type FeatureIssue = Database['public']['Tables']['feature_issues']['Row'];
 export type FeatureMessage = Database['public']['Tables']['feature_messages']['Row'];
 export type KnowledgeDocument = Database['public']['Tables']['knowledge_documents']['Row'];
 export type KnowledgeChunk = Database['public']['Tables']['knowledge_chunks']['Row'];

@@ -29,7 +29,7 @@ export default function Sidebar() {
     <aside className={styles.sidebar}>
       <Link href="/workspaces" className={styles.logo}>
         <Image
-          src="/speqtr-logo.svg"
+          src="/speqtr-logo-light.svg"
           alt="Speqtr"
           width={400}
           height={90}
@@ -65,6 +65,12 @@ export default function Sidebar() {
           className={`${styles.navItem} ${pathname === '/artifacts' || pathname.startsWith('/artifacts/') ? styles.navItemActive : ''}`}
         >
           Artifacts
+        </Link>
+        <Link
+          href="/issues"
+          className={`${styles.navItem} ${pathname === '/issues' || pathname.startsWith('/issues/') ? styles.navItemActive : ''}`}
+        >
+          Issues
         </Link>
       </div>
 

@@ -6,12 +6,18 @@ interface Props {
   questions: ClarifyingQuestion[];
   onComplete: (answers: ClarificationAnswers) => void;
   onClose: () => void;
+  /** Shown before the first feature inference draft (copy + skip-all affordances). */
+  preInference?: boolean;
+  /** Skip every question and continue (parent runs inference without Q&A). */
+  onSkipAll?: () => void;
 }
 
 export default function ClarifyingQuestionsModal({
   questions,
   onComplete,
   onClose,
+  preInference = false,
+  onSkipAll,
 }: Props) {
   const questionsKey = questions.map((q) => q.id).join("|");
   const [step, setStep] = useState(0);
@@ -175,7 +181,11 @@ export default function ClarifyingQuestionsModal({
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        skip();
+        if (preInference && onSkipAll) {
+          onSkipAll();
+        } else {
+          skip();
+        }
         return;
       }
 
@@ -245,6 +255,8 @@ export default function ClarifyingQuestionsModal({
     confirmMulti,
     confirmText,
     skip,
+    preInference,
+    onSkipAll,
   ]);
 
   useEffect(() => {
@@ -268,6 +280,11 @@ export default function ClarifyingQuestionsModal({
         ref={modalRef}
         tabIndex={-1}
       >
+        {preInference ? (
+          <p className={styles.preInferenceNote}>
+            Answer a few questions to sharpen the draft — or skip to generate the feature inference now.
+          </p>
+        ) : null}
         <div className={styles.header}>
           <span className={styles.questionTitle}>{q.title}</span>
           <div className={styles.headerRight}>
@@ -290,7 +307,11 @@ export default function ClarifyingQuestionsModal({
             >
               ›
             </button>
-            <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
+            <button
+              className={styles.closeBtn}
+              onClick={preInference && onSkipAll ? onSkipAll : onClose}
+              aria-label={preInference ? "Skip all questions" : "Close"}
+            >
               ×
             </button>
           </div>
@@ -405,10 +426,16 @@ export default function ClarifyingQuestionsModal({
               </>
             )}
             <span className={styles.hint}>
-              <span className={styles.hintKey}>Esc</span> skip
+              <span className={styles.hintKey}>Esc</span>{" "}
+              {preInference && onSkipAll ? "skip all" : "skip"}
             </span>
           </div>
           <div className={styles.footerActions}>
+            {preInference && onSkipAll ? (
+              <button type="button" className={styles.skipAllBtn} onClick={onSkipAll}>
+                Skip all
+              </button>
+            ) : null}
             <button className={styles.skipBtn} onClick={skip}>
               Skip
             </button>

@@ -76,6 +76,41 @@ create table if not exists feature_artifacts (
   constraint feature_artifacts_body_or_storage check (body is not null or storage_path is not null)
 );
 
+-- Feature issues (epic + stories), scoped to a feature / PRD
+create table if not exists feature_issues (
+  id uuid primary key default uuid_generate_v4(),
+  feature_id uuid not null references features(id) on delete cascade,
+  parent_id uuid references feature_issues(id) on delete cascade,
+  type text not null check (type in ('epic', 'story')),
+  issue_key text not null,
+  title text not null,
+  description text not null default '',
+  acceptance_criteria jsonb not null default '[]'::jsonb,
+  status text not null default 'open' check (
+    status in ('open', 'in_progress', 'in_review', 'done', 'blocked', 'cancelled')
+  ),
+  priority text not null default 'medium' check (
+    priority in ('lowest', 'low', 'medium', 'high', 'highest')
+  ),
+  due_date date,
+  generated_from text check (
+    generated_from is null
+    or generated_from in ('inference_competitor', 'manual', 'prd_import')
+  ),
+  sort_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (feature_id, issue_key),
+  constraint feature_issues_parent_shape check (
+    (type = 'epic' and parent_id is null)
+    or (type = 'story' and parent_id is not null)
+  )
+);
+
+create unique index if not exists idx_feature_issues_one_epic_per_feature
+  on feature_issues (feature_id)
+  where type = 'epic' and parent_id is null;
+
 -- Indexes
 create index if not exists idx_features_workspace on features(workspace_id);
 create index if not exists idx_prd_feature on prd_documents(feature_id);
@@ -84,6 +119,8 @@ create index if not exists idx_feature_messages_fts on feature_messages using gi
 create index if not exists idx_feature_messages_embedding on feature_messages using hnsw (embedding vector_cosine_ops) with (m = 16, ef_construction = 64);
 create index if not exists idx_feature_artifacts_feature_kind_version on feature_artifacts (feature_id, kind, version desc);
 create index if not exists idx_feature_artifacts_feature_draft on feature_artifacts (feature_id, kind) where is_draft = true;
+create index if not exists idx_feature_issues_feature on feature_issues (feature_id);
+create index if not exists idx_feature_issues_parent on feature_issues (parent_id) where parent_id is not null;
 
 -- Auto-update updated_at on row changes
 create or replace function update_updated_at()
@@ -104,6 +141,9 @@ create trigger prd_documents_updated_at before update on prd_documents
   for each row execute function update_updated_at();
 
 create trigger feature_artifacts_updated_at before update on feature_artifacts
+  for each row execute function update_updated_at();
+
+create trigger feature_issues_updated_at before update on feature_issues
   for each row execute function update_updated_at();
 
 -- Auto-populate search_vector on feature_messages insert/update

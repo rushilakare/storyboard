@@ -104,7 +104,7 @@ const Pupil = ({
   if (eyesClosed) {
     return (
       <div
-        className="rounded-full bg-[#2D2D2D]"
+        className="rounded-full bg-neutral-800"
         style={{
           width: `${Math.max(size * 1.3, 14)}px`,
           height: '3px',
@@ -428,7 +428,7 @@ export default function AnimatedCharactersLoginPage({
         <div className="relative z-20">
           <div className="flex w-full max-w-xl items-center pr-4">
             <Image
-              src="/speqtr-logo.svg"
+              src="/speqtr-logo-light.svg"
               alt="Speqtr"
               width={560}
               height={140}
@@ -450,7 +450,7 @@ export default function AnimatedCharactersLoginPage({
                   isTyping || (password.length > 0 && !showPassword)
                     ? '440px'
                     : '400px',
-                backgroundColor: '#6C3FF5',
+                backgroundColor: '#3a6b62',
                 borderRadius: '10px 10px 0 0',
                 zIndex: 1,
                 transform:
@@ -484,7 +484,7 @@ export default function AnimatedCharactersLoginPage({
                   pupilSize={7}
                   maxDistance={5}
                   eyeColor="white"
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   isBlinking={isPurpleBlinking}
                   eyesClosed={hideEyes}
                   forceLookX={
@@ -515,7 +515,7 @@ export default function AnimatedCharactersLoginPage({
                   pupilSize={7}
                   maxDistance={5}
                   eyeColor="white"
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   isBlinking={isPurpleBlinking}
                   eyesClosed={hideEyes}
                   forceLookX={
@@ -551,7 +551,7 @@ export default function AnimatedCharactersLoginPage({
                 left: '240px',
                 width: '120px',
                 height: '310px',
-                backgroundColor: '#2D2D2D',
+                backgroundColor: '#3a3a36',
                 borderRadius: '8px 8px 0 0',
                 zIndex: 2,
                 transform:
@@ -587,7 +587,7 @@ export default function AnimatedCharactersLoginPage({
                   pupilSize={6}
                   maxDistance={4}
                   eyeColor="white"
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   isBlinking={isBlackBlinking}
                   eyesClosed={hideEyes}
                   forceLookX={
@@ -614,7 +614,7 @@ export default function AnimatedCharactersLoginPage({
                   pupilSize={6}
                   maxDistance={4}
                   eyeColor="white"
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   isBlinking={isBlackBlinking}
                   eyesClosed={hideEyes}
                   forceLookX={
@@ -672,7 +672,7 @@ export default function AnimatedCharactersLoginPage({
                 <Pupil
                   size={12}
                   maxDistance={5}
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   eyesClosed={hideEyes}
                   forceLookX={
                     hideEyes
@@ -692,7 +692,7 @@ export default function AnimatedCharactersLoginPage({
                 <Pupil
                   size={12}
                   maxDistance={5}
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   eyesClosed={hideEyes}
                   forceLookX={
                     hideEyes
@@ -745,7 +745,7 @@ export default function AnimatedCharactersLoginPage({
                 <Pupil
                   size={12}
                   maxDistance={5}
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   eyesClosed={hideEyes}
                   forceLookX={
                     hideEyes
@@ -765,7 +765,7 @@ export default function AnimatedCharactersLoginPage({
                 <Pupil
                   size={12}
                   maxDistance={5}
-                  pupilColor="#2D2D2D"
+                  pupilColor="#2a2a28"
                   eyesClosed={hideEyes}
                   forceLookX={
                     hideEyes
@@ -784,7 +784,7 @@ export default function AnimatedCharactersLoginPage({
                 />
               </div>
               <div
-                className="absolute w-20 h-[4px] bg-[#2D2D2D] rounded-full transition-all duration-200 ease-out"
+                className="absolute w-20 h-[4px] rounded-full bg-neutral-700 transition-all duration-200 ease-out"
                 style={{
                   left:
                     password.length > 0 && showPassword
@@ -813,7 +813,7 @@ export default function AnimatedCharactersLoginPage({
         </div>
 
         <div
-          className="pointer-events-none absolute inset-0 opacity-60 bg-[linear-gradient(to_right,oklch(0_0_0_/_0.06)_1px,transparent_1px),linear-gradient(to_bottom,oklch(0_0_0_/_0.06)_1px,transparent_1px)] bg-[size:20px_20px] dark:bg-[linear-gradient(to_right,oklch(1_0_0_/_0.06)_1px,transparent_1px),linear-gradient(to_bottom,oklch(1_0_0_/_0.06)_1px,transparent_1px)]"
+          className="pointer-events-none absolute inset-0 bg-[length:20px_20px] bg-[linear-gradient(to_right,oklch(0_0_0_/_0.05)_1px,transparent_1px),linear-gradient(to_bottom,oklch(0_0_0_/_0.05)_1px,transparent_1px)] opacity-50"
           aria-hidden
         />
         <div className="pointer-events-none absolute top-1/4 right-1/4 size-64 rounded-full bg-primary/10 blur-3xl" />
@@ -824,7 +824,7 @@ export default function AnimatedCharactersLoginPage({
         <div className="w-full max-w-[420px]">
           <div className="lg:hidden flex w-full items-center justify-center mb-12 px-1">
             <Image
-              src="/speqtr-logo.svg"
+              src="/speqtr-logo-light.svg"
               alt="Speqtr"
               width={400}
               height={100}

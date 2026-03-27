@@ -5,7 +5,6 @@ import type { KnowledgeBaseNotice } from './knowledge/httpHeaders';
 import { retrieveKnowledgeChunks } from './knowledge/retrieval';
 import {
   COMPETITOR_OUTPUT_DISCIPLINE,
-  INFERENCE_CLARIFYING_JSON_RULES,
   INFERENCE_OUTPUT_DISCIPLINE,
   INFERENCE_REVISION_FROM_TRANSCRIPT,
   PRD_OUTPUT_REQUIREMENTS,
@@ -60,6 +59,8 @@ function includeMessageForAgent(m: DbMessage, agentKind: 'inference' | 'competit
   if (m.role !== 'assistant') return false;
 
   const t = m.agent_type;
+  // Discussion turns are backlog chat only — never feed pipeline agents.
+  if (t === 'discussion') return false;
   if (agentKind === 'inference') {
     return t === 'inference' || t === null;
   }
@@ -90,8 +91,6 @@ function buildInferenceSystem(
     INFERENCE_OUTPUT_DISCIPLINE,
     '',
     INFERENCE_REVISION_FROM_TRANSCRIPT,
-    '',
-    INFERENCE_CLARIFYING_JSON_RULES,
     '',
     TRANSCRIPT_DISCIPLINE,
     '',
