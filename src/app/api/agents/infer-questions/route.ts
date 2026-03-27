@@ -5,7 +5,8 @@ import { inferQuestionsResponseSchema } from '@/lib/inferQuestionsSchema';
 
 export const maxDuration = 60;
 
-const MODEL = openai('gpt-5.4-2026-03-05');
+/** gpt-4o-mini: reliable structured output; gpt-5.4 id can throw AI_APICallError if unavailable on the account. */
+const MODEL = openai('gpt-4o-mini');
 
 const SYSTEM = `You are a product manager assistant. Given only a short feature brief, produce clarifying questions that will improve the quality of a later feature-inference draft.
 
@@ -31,12 +32,33 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { name, purpose, requirements } = body as {
+    const raw = body as {
       featureId?: string | null;
       name?: string;
       purpose?: string;
       requirements?: string;
     };
+
+    let name = (raw.name ?? '').trim();
+    let purpose = (raw.purpose ?? '').trim();
+    let requirements = (raw.requirements ?? '').trim();
+
+    const featureId =
+      typeof raw.featureId === 'string' && raw.featureId.length > 0 ? raw.featureId : null;
+
+    if (featureId) {
+      const { data: row } = await auth.supabase
+        .from('features')
+        .select('name, purpose, requirements')
+        .eq('id', featureId)
+        .maybeSingle();
+
+      if (row) {
+        if (!name) name = (row.name ?? '').trim();
+        if (!purpose) purpose = (row.purpose ?? '').trim();
+        if (!requirements) requirements = (row.requirements ?? '').trim();
+      }
+    }
 
     const brief = [
       name ? `Feature name: ${name}` : '',
@@ -71,6 +93,16 @@ export async function POST(request: Request) {
     return Response.json(output);
   } catch (error) {
     console.error('infer-questions', error);
-    return Response.json({ success: false, error: 'Failed to generate questions' }, { status: 500 });
+    const err = error as Error & { statusCode?: number };
+    const safeMsg =
+      typeof err.message === 'string' ? err.message.slice(0, 160).replace(/\s+/g, ' ') : '';
+    return Response.json(
+      {
+        success: false,
+        error: 'Failed to generate questions',
+        ...(process.env.NODE_ENV === 'development' && safeMsg ? { detail: safeMsg } : {}),
+      },
+      { status: 500 },
+    );
   }
 }

@@ -173,7 +173,7 @@ export default function ChatInterface({
                     className={styles.approveBtn}
                     onClick={() => onApprove(msg.id, "issues_prompt")}
                   >
-                    Yes, generate issues
+                    Looks good — generate issues
                   </button>
                 </div>
               )}

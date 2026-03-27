@@ -184,7 +184,7 @@ export default function FeatureIssuesPanel({
         <div className={styles.toolbarActions}>
           <button
             type="button"
-            className={styles.btn}
+            className={styles.refreshBtn}
             onClick={() => void load()}
           >
             Refresh

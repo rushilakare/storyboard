@@ -27,7 +27,6 @@ import { X } from "lucide-react";
 import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferenceQuestions";
 import {
   formatClarificationSummary,
-  isInferenceClarificationsV2,
   parseInferenceStreamComplete,
   splitInferenceDisplayBuffer,
 } from "@/lib/postInferenceQuestions";
@@ -95,27 +94,40 @@ function resolveRevisionAgent(messages: Message[]): "inference" | "competitor" {
   return "inference";
 }
 
+type ConsumeInferenceStreamOptions = {
+  /** Keep the inference panel empty until the stream completes (no partial draft). */
+  bufferDocumentUntilDone?: boolean;
+  /** For persisted features, clarifying Q&A is only the pre-inference modal — ignore model JSON appendix. */
+  dropParsedQuestions?: boolean;
+};
+
 async function consumeInferenceStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   agentMsgId: string,
   setMessages: Dispatch<SetStateAction<Message[]>>,
   setInferenceDoc: Dispatch<SetStateAction<string>>,
+  options?: ConsumeInferenceStreamOptions,
 ): Promise<{ narrative: string; questions: ClarifyingQuestion[] }> {
+  const bufferDocumentUntilDone = options?.bufferDocumentUntilDone ?? false;
+  const dropParsedQuestions = options?.dropParsedQuestions ?? false;
   const decoder = new TextDecoder();
   let agentContent = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     agentContent += decoder.decode(value, { stream: true });
-    const { display } = splitInferenceDisplayBuffer(agentContent);
-    setInferenceDoc(display);
+    if (!bufferDocumentUntilDone) {
+      const { display } = splitInferenceDisplayBuffer(agentContent);
+      setInferenceDoc(display);
+    }
     setMessages((prev) =>
       prev.map((m) =>
         m.id === agentMsgId ? { ...m, content: "Generating feature inference…" } : m,
       ),
     );
   }
-  const { narrative, questions } = parseInferenceStreamComplete(agentContent);
+  const { narrative, questions: parsedQs } = parseInferenceStreamComplete(agentContent);
+  const questions = dropParsedQuestions ? [] : parsedQs;
   setInferenceDoc(narrative);
   setMessages((prev) =>
     prev.map((m) =>
@@ -123,7 +135,7 @@ async function consumeInferenceStream(
         ? {
             ...m,
             content: INFERENCE_CHAT_STUB,
-            clarifyingQuestions: questions,
+            ...(questions.length > 0 ? { clarifyingQuestions: questions } : {}),
             status: "needs_review" as const,
           }
         : m,
@@ -312,6 +324,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [discussionMode, setDiscussionMode] = useState(false);
   /** Clarifying modal is the pre-inference Q&A step (not post-stream JSON questions). */
   const [clarifyingIsPreInference, setClarifyingIsPreInference] = useState(false);
+  const [featureCreateError, setFeatureCreateError] = useState<string | null>(null);
+  const [preInferenceQuestionsError, setPreInferenceQuestionsError] = useState<string | null>(null);
 
   const clearPanelSearchParams = useCallback(() => {
     const p = new URLSearchParams(searchParams.toString());
@@ -689,6 +703,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setDiscussionMode(false);
     setClarifyingIsPreInference(false);
     preInferenceClarifyPendingRef.current = false;
+    setFeatureCreateError(null);
+    setPreInferenceQuestionsError(null);
   }, [featureParam]);
 
   const openClarifyingModal = useCallback((inferMsgId: string) => {
@@ -754,15 +770,19 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           appendKnowledgeBaseChatLine(addMessage, res);
           if (res.body) {
             const reader = res.body.getReader();
+            const streamOpts: ConsumeInferenceStreamOptions | undefined = fid
+              ? { bufferDocumentUntilDone: true, dropParsedQuestions: true }
+              : undefined;
             const { narrative, questions } = await consumeInferenceStream(
               reader,
               agentMsgId,
               setMessages,
               setInferenceDocument,
+              streamOpts,
             );
             narrativeForPersistence = narrative;
             parsedQuestions = questions;
-            if (questions.length > 0) {
+            if (!fid && questions.length > 0) {
               setPendingClarifyingQuestions(questions);
               openClarifyingModal(agentMsgId);
             } else {
@@ -779,7 +799,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
       if (fid && narrativeForPersistence) {
         const meta =
-          parsedQuestions.length > 0 ? { clarifying_questions: parsedQuestions } : undefined;
+          !fid && parsedQuestions.length > 0
+            ? { clarifying_questions: parsedQuestions }
+            : undefined;
         await persistMessage(fid, "assistant", narrativeForPersistence, "inference", meta);
       }
     },
@@ -886,20 +908,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
           setMessages(uiMsgs);
 
-          const lastInf = [...uiMsgs].reverse().find(
-            (m) => m.role === "agent" && m.agentType === "inference" && m.status === "needs_review",
-          );
-          const hasV2Saved = isInferenceClarificationsV2(data.inference_clarifications);
-          if (
-            data.status === "draft" &&
-            lastInf &&
-            !hasV2Saved &&
-            lastInf.clarifyingQuestions &&
-            lastInf.clarifyingQuestions.length > 0
-          ) {
-            setPendingClarifyingQuestions(lastInf.clarifyingQuestions);
-            openClarifyingModal(lastInf.id);
-          }
           if (["review", "done"].includes(data.status) && prdText) {
             setDocumentPanelKind("prd");
             setIsSplitView(true);
@@ -1003,7 +1011,73 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     return () => {
       cancelled = true;
     };
-  }, [featureParam, workspaceId, router, openClarifyingModal]);
+  }, [featureParam, workspaceId, router]);
+
+  const fetchPreInferenceQuestions = useCallback(
+    async (
+      fid: string,
+      form: { name: string; purpose: string; requirements: string },
+    ): Promise<{ ok: true; questions: ClarifyingQuestion[] } | { ok: false; error: string }> => {
+      try {
+        const qres = await fetch("/api/agents/infer-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            featureId: fid,
+            name: form.name,
+            purpose: form.purpose,
+            requirements: form.requirements,
+          }),
+        });
+        if (!qres.ok) {
+          const errText = await qres.text().catch(() => "");
+          return {
+            ok: false,
+            error: errText || qres.statusText || "Could not load clarifying questions.",
+          };
+        }
+        const j = (await qres.json()) as { questions?: ClarifyingQuestion[]; error?: string };
+        if (Array.isArray(j.questions) && j.questions.length > 0) {
+          return { ok: true, questions: j.questions };
+        }
+        return {
+          ok: false,
+          error: j.error || "The questions service returned no questions. Try again.",
+        };
+      } catch (e) {
+        console.error("infer-questions failed", e);
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : "Network error loading clarifying questions.",
+        };
+      }
+    },
+    [],
+  );
+
+  const retryPreInferenceQuestions = useCallback(async () => {
+    const fid = featureId;
+    const fd = featureData;
+    if (!fid || !fd) return;
+    setPreInferenceQuestionsError(null);
+    setIsLoading(true);
+    streamingRef.current = true;
+    try {
+      const result = await fetchPreInferenceQuestions(fid, fd);
+      if (result.ok) {
+        preInferenceClarifyPendingRef.current = true;
+        setClarifyingIsPreInference(true);
+        clarifyShownForRef.current.add(`pre-${fid}`);
+        setPendingClarifyingQuestions(result.questions);
+        setClarifyingOpen(true);
+        return;
+      }
+      setPreInferenceQuestionsError(result.error);
+    } finally {
+      setIsLoading(false);
+      streamingRef.current = false;
+    }
+  }, [featureId, featureData, fetchPreInferenceQuestions]);
 
   // ── New Feature Flow ──────────────────────────────────────────────
   const handleStartFeature = async (data: {
@@ -1011,9 +1085,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     purpose: string;
     requirements: string;
   }) => {
-    setIsModalOpen(false);
-    setChatStarted(true);
+    setFeatureCreateError(null);
+    setPreInferenceQuestionsError(null);
     setFeatureData(data);
+    setIsLoading(true);
 
     let newId: string | null = null;
     try {
@@ -1027,63 +1102,52 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           workspace_id: workspaceId,
         }),
       });
-      if (res.ok) {
-        const saved = await res.json();
-        newId = saved.id;
-        setFeatureId(saved.id);
-        // Block hydration from overwriting local chat while URL updates (race before infer finishes).
-        streamingRef.current = true;
-        router.replace(`/workspaces/${workspaceId}?feature=${saved.id}`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        setFeatureCreateError(errText || res.statusText || "Could not create feature.");
+        setIsLoading(false);
+        return;
       }
+      const saved = await res.json();
+      newId = saved.id;
+      setFeatureId(saved.id);
     } catch (e) {
       console.error("Failed to persist feature", e);
+      setFeatureCreateError(e instanceof Error ? e.message : "Could not create feature.");
+      setIsLoading(false);
+      return;
     }
+
+    if (!newId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const createdFeatureId = newId;
+
+    setIsModalOpen(false);
+    setChatStarted(true);
+    streamingRef.current = true;
+    router.replace(`/workspaces/${workspaceId}?feature=${createdFeatureId}`);
 
     const userContent = `I want a new feature: ${data.name}\n\nPurpose: ${data.purpose}\nRequirements: ${data.requirements}`;
     addMessage({ id: Date.now().toString(), role: "user", content: userContent });
+    await persistMessage(createdFeatureId, "user", userContent);
 
-    if (newId) {
-      await persistMessage(newId, "user", userContent);
+    const qResult = await fetchPreInferenceQuestions(createdFeatureId, data);
+    setIsLoading(false);
+    streamingRef.current = false;
+
+    if (qResult.ok) {
+      preInferenceClarifyPendingRef.current = true;
+      setClarifyingIsPreInference(true);
+      clarifyShownForRef.current.add(`pre-${createdFeatureId}`);
+      setPendingClarifyingQuestions(qResult.questions);
+      setClarifyingOpen(true);
+      return;
     }
 
-    if (newId) {
-      setIsLoading(true);
-      let questions: ClarifyingQuestion[] = [];
-      try {
-        const qres = await fetch("/api/agents/infer-questions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            featureId: newId,
-            name: data.name,
-            purpose: data.purpose,
-            requirements: data.requirements,
-          }),
-        });
-        if (qres.ok) {
-          const j = (await qres.json()) as { questions?: ClarifyingQuestion[] };
-          if (Array.isArray(j.questions) && j.questions.length >= 3) {
-            questions = j.questions;
-          }
-        }
-      } catch (e) {
-        console.error("infer-questions failed", e);
-      } finally {
-        setIsLoading(false);
-        streamingRef.current = false;
-      }
-
-      if (questions.length >= 3) {
-        preInferenceClarifyPendingRef.current = true;
-        setClarifyingIsPreInference(true);
-        clarifyShownForRef.current.add(`pre-${newId}`);
-        setPendingClarifyingQuestions(questions);
-        setClarifyingOpen(true);
-        return;
-      }
-    }
-
-    await runInitialInference(newId, data);
+    setPreInferenceQuestionsError(qResult.error);
   };
 
   // ── User Revision ─────────────────────────────────────────────────
@@ -1211,7 +1275,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     streamingRef.current = true;
     setIsLoading(true);
     let agentContent = "";
-    let inferenceQuestionsForMeta: ClarifyingQuestion[] = [];
     /* PRD revision branch (disabled)
     if (isPrd) {
       setDocumentPanelKind("prd");
@@ -1250,15 +1313,18 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         if (res.body) {
           const reader = res.body.getReader();
           if (agentType === "inference") {
+            const streamOpts: ConsumeInferenceStreamOptions | undefined = fid
+              ? { bufferDocumentUntilDone: true, dropParsedQuestions: true }
+              : undefined;
             const { narrative, questions } = await consumeInferenceStream(
               reader,
               agentMsgId,
               setMessages,
               setInferenceDocument,
+              streamOpts,
             );
             agentContent = narrative;
-            inferenceQuestionsForMeta = questions;
-            if (questions.length > 0) {
+            if (!fid && questions.length > 0) {
               setPendingClarifyingQuestions(questions);
               openClarifyingModal(agentMsgId);
             } else {
@@ -1293,9 +1359,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         }
         */
       } else if (agentType === "inference") {
-        await persistMessage(fid, "assistant", agentContent, agentType, {
-          clarifying_questions: inferenceQuestionsForMeta,
-        });
+        await persistMessage(fid, "assistant", agentContent, agentType);
       } else {
         await persistMessage(fid, "assistant", agentContent, agentType);
       }
@@ -1600,6 +1664,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   }, [featureId, featureData, runInitialInference]);
 
   const handleClarifyComplete = async (data: ClarificationAnswers) => {
+    setPreInferenceQuestionsError(null);
     setClarifyingOpen(false);
     const questionsSnapshot = pendingClarifyingQuestions;
     setPendingClarifyingQuestions([]);
@@ -1742,7 +1807,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             <button
               type="button"
               className={styles.listPrimaryBtn}
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+              setFeatureCreateError(null);
+              setIsModalOpen(true);
+            }}
             >
               New feature
             </button>
@@ -1902,8 +1970,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
         {isModalOpen && (
           <NewFeatureModal
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => {
+              setFeatureCreateError(null);
+              setIsModalOpen(false);
+            }}
             onSubmit={handleStartFeature}
+            submitError={featureCreateError}
           />
         )}
       </div>
@@ -1914,8 +1986,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     <div className={styles.container}>
       {isModalOpen && (
         <NewFeatureModal
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => {
+            setFeatureCreateError(null);
+            setIsModalOpen(false);
+          }}
           onSubmit={handleStartFeature}
+          submitError={featureCreateError}
         />
       )}
       <div className={`${styles.layout} ${isSplitView ? styles.splitActive : ""}`}>
@@ -1947,6 +2023,19 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           </header>
 
           <div className={styles.chatWrapperOuter}>
+            {preInferenceQuestionsError ? (
+              <div className={styles.preInferenceErrorBanner} role="alert">
+                <p className={styles.preInferenceErrorText}>{preInferenceQuestionsError}</p>
+                <button
+                  type="button"
+                  className={styles.preInferenceRetryBtn}
+                  onClick={() => void retryPreInferenceQuestions()}
+                  disabled={isLoading}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : null}
             {chatStarted ? (
               <ChatInterface
                 messages={messages}

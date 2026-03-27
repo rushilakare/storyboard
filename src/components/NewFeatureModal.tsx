@@ -4,9 +4,10 @@ import styles from "./NewFeatureModal.module.css";
 interface NewFeatureModalProps {
   onClose: () => void;
   onSubmit: (data: any) => void;
+  submitError?: string | null;
 }
 
-export default function NewFeatureModal({ onClose, onSubmit }: NewFeatureModalProps) {
+export default function NewFeatureModal({ onClose, onSubmit, submitError }: NewFeatureModalProps) {
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [requirements, setRequirements] = useState("");
@@ -50,15 +51,21 @@ export default function NewFeatureModal({ onClose, onSubmit }: NewFeatureModalPr
             />
           </div>
           
-          <div className={styles.uploadZone}>
+          <div className={styles.uploadZone} aria-disabled="true" title="Coming soon">
             <span className={styles.uploadText}>
-              Click or drag files here to upload context (PDF, Image, etc.)
+              File uploads are not available yet. Add context in Requirements or use the Knowledge page.
             </span>
           </div>
 
+          {submitError ? (
+            <p className={styles.submitError} role="alert">
+              {submitError}
+            </p>
+          ) : null}
+
           <div className={styles.actions}>
             <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancel</button>
-            <button type="submit" className={styles.submitBtn}>Start Conversation</button>
+            <button type="submit" className={styles.submitBtn}>Start</button>
           </div>
         </form>
       </div>

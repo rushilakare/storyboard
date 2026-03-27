@@ -46,10 +46,23 @@
   cursor: not-allowed;
 }
 
+.refreshBtn {
+  composes: btn;
+}
+
+.refreshBtn:hover:not(:disabled) {
+  background: var(--bg-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
 .btnPrimary {
+  composes: btn;
   border-color: var(--text-primary);
   background: var(--text-primary);
   color: var(--bg-surface);
+}
+
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.92;
 }
 
 .body {

@@ -42,7 +42,7 @@ After Phase 1 is satisfied from CONTEXT, output **ONLY** valid JSON matching the
 
 - **title**: Short, outcome-oriented name for the initiative
 - **problem_statement**: Who is affected, what they can't do today, and why this matters now (2–4 sentences)
-- **goals**: Array of 2–4 specific, measurable goals
+- **goals**: Array of specific, measurable goals
 - **non_goals**: Array of explicit things this epic will NOT do
 - **personas**: Array of objects — each with \`name\`, \`role\`, \`pain_point\`
 - **success_metrics**: Array of objects — each with \`type\` ("primary" | "guardrail" | "counter"), \`metric\`, \`baseline\`, \`target\`
@@ -61,8 +61,8 @@ After Phase 1 is satisfied from CONTEXT, output **ONLY** valid JSON matching the
 - **title**: Action-oriented, specific
 - **persona**: Which persona this story serves
 - **narrative**: "As a [persona], I want [capability], so that [outcome]" — no vague language
-- **description**: 2–3 sentences of context and scope for the engineer
-- **acceptance_criteria**: Minimum 3 per story, written as "Given [state], when [action], then [outcome]"
+- **description**: Context and scope for the engineer
+- **acceptance_criteria**: as many as needed, but minimum 7, written as "Given [state], when [action], then [outcome]"
 - **dependencies**: Array of story IDs this story depends on (empty array if none)
 - **notes**: Technical flags, compliance risks (tag with [COMPLIANCE]), open questions specific to this story
 - **due_date**: "YYYY-MM-DD" or null
