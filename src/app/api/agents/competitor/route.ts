@@ -1,11 +1,14 @@
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { COMPETITOR_OUTPUT_DISCIPLINE } from '@/lib/agent-prompts';
+import { MODEL_GPT_5_4, recordAiUsage } from '@/lib/ai/recordUsage';
 import { requireUser } from '@/lib/auth/require-user';
 import { assembleFeatureContext } from '@/lib/context';
 import { knowledgeBaseHeaders } from '@/lib/knowledge/httpHeaders';
 
 export const maxDuration = 60;
+
+const COMPETITOR_MODEL = openai(MODEL_GPT_5_4);
 
 export async function POST(request: Request) {
   const auth = await requireUser();
@@ -23,9 +26,18 @@ export async function POST(request: Request) {
       });
 
       const { textStream } = streamText({
-        model: openai("gpt-5.4-2026-03-05"),
+        model: COMPETITOR_MODEL,
         system: context.systemPrompt,
         messages: context.messages,
+        onFinish: async ({ totalUsage }) => {
+          await recordAiUsage(auth.supabase, {
+            userId: auth.userId,
+            featureId,
+            source: 'competitor',
+            modelId: MODEL_GPT_5_4,
+            usage: totalUsage,
+          });
+        },
       });
 
       return new Response(textStream, {
@@ -51,14 +63,23 @@ ${COMPETITOR_OUTPUT_DISCIPLINE}`;
     }
 
     const { textStream } = streamText({
-      model: openai("gpt-5.4-2026-03-05"),
+      model: COMPETITOR_MODEL,
       prompt,
+      onFinish: async ({ totalUsage }) => {
+        await recordAiUsage(auth.supabase, {
+          userId: auth.userId,
+          featureId: null,
+          source: 'competitor',
+          modelId: MODEL_GPT_5_4,
+          usage: totalUsage,
+        });
+      },
     });
 
     return new Response(textStream, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
-  } catch (error) {
+  } catch {
     return new Response(
       JSON.stringify({ success: false, error: "Failed to search competitors" }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },

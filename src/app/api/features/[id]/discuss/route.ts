@@ -1,41 +1,32 @@
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import {
+  ARTIFACT_KIND_COMPETITOR,
+  ARTIFACT_KIND_INFERENCE,
+  getLatestCompletedArtifactByKind,
+} from '@/lib/artifact-persistence';
+import {
+  DISCUSS_ARTIFACT_MAX_CHARS,
+  DISCUSS_TRANSCRIPT_MAX_CHARS,
+  DISCUSS_TRANSCRIPT_PER_MESSAGE_MAX,
+  type DiscussMessageRow,
+  buildDiscussTranscriptFromMessages,
+  formatArtifactBlock,
+} from '@/lib/discuss-context';
+import {
   formatAnswerForQuestion,
   isInferenceClarificationsV2,
   type ClarifyingQuestion,
 } from '@/lib/postInferenceQuestions';
 import { requireUser } from '@/lib/auth/require-user';
+import { MODEL_GPT_4O_MINI, recordAiUsage } from '@/lib/ai/recordUsage';
 import { NextResponse } from 'next/server';
 
 export const maxDuration = 60;
 
-const MODEL = openai('gpt-4o-mini');
+const MODEL = openai(MODEL_GPT_4O_MINI);
 
-function includeMessageInDiscussTranscript(row: {
-  role: string;
-  agent_type: string | null;
-}): boolean {
-  if (row.role === 'user') return true;
-  if (row.role === 'system') return true;
-  if (row.role !== 'assistant') return false;
-  return row.agent_type === 'discussion';
-}
-
-function backlogSummaryLines(
-  rows: Array<{ type: string; issue_key: string; title: string }>,
-): string {
-  const epic = rows.find((r) => r.type === 'epic');
-  const stories = rows.filter((r) => r.type === 'story');
-  const lines: string[] = [];
-  if (epic) {
-    lines.push(`Epic [${epic.issue_key}]: ${epic.title}`);
-  }
-  for (const s of stories) {
-    lines.push(`- [${s.issue_key}] ${s.title}`);
-  }
-  return lines.length ? lines.join('\n') : '(No issues in database yet.)';
-}
+const FEATURE_MESSAGES_FETCH_LIMIT = 120;
 
 function clarificationsSnippet(inference_clarifications: unknown): string {
   if (!inference_clarifications || typeof inference_clarifications !== 'object') return '';
@@ -83,40 +74,28 @@ export async function POST(
     return NextResponse.json({ error: 'Feature not found' }, { status: 404 });
   }
 
-  const { data: issueRows, error: ie } = await sb
-    .from('feature_issues')
-    .select('type, issue_key, title')
-    .eq('feature_id', featureId)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
-
-  if (ie) {
-    return NextResponse.json({ error: ie.message }, { status: 500 });
-  }
+  const [inferenceArtifact, competitorArtifact] = await Promise.all([
+    getLatestCompletedArtifactByKind(sb, featureId, ARTIFACT_KIND_INFERENCE),
+    getLatestCompletedArtifactByKind(sb, featureId, ARTIFACT_KIND_COMPETITOR),
+  ]);
 
   const { data: rawMsgs, error: me } = await sb
     .from('feature_messages')
     .select('role, content, agent_type, sequence_num')
     .eq('feature_id', featureId)
     .order('sequence_num', { ascending: false })
-    .limit(48);
+    .limit(FEATURE_MESSAGES_FETCH_LIMIT);
 
   if (me) {
     return NextResponse.json({ error: me.message }, { status: 500 });
   }
 
-  const chronological = (rawMsgs ?? []).reverse().filter(includeMessageInDiscussTranscript);
-  const recent = chronological.slice(-24);
-  const transcript =
-    recent.length === 0
-      ? '(No prior discussion thread.)'
-      : recent
-          .map((m) => {
-            const who =
-              m.role === 'user' ? 'User' : m.role === 'system' ? 'System' : 'Assistant';
-            return `${who}: ${m.content}`;
-          })
-          .join('\n\n');
+  const chronological = (rawMsgs ?? []).reverse() as DiscussMessageRow[];
+  const transcript = buildDiscussTranscriptFromMessages(
+    chronological,
+    DISCUSS_TRANSCRIPT_MAX_CHARS,
+    DISCUSS_TRANSCRIPT_PER_MESSAGE_MAX,
+  );
 
   const featureBlock = [
     `Feature: ${feature.name}`,
@@ -127,28 +106,60 @@ export async function POST(
     .filter(Boolean)
     .join('\n');
 
-  const backlog = backlogSummaryLines((issueRows ?? []) as { type: string; issue_key: string; title: string }[]);
+  const inferenceBlock = formatArtifactBlock(
+    '### Latest feature inference (saved artifact)',
+    inferenceArtifact?.body,
+    DISCUSS_ARTIFACT_MAX_CHARS,
+  );
+  const competitorBlock = formatArtifactBlock(
+    '### Latest competitor analysis (saved artifact)',
+    competitorArtifact?.body,
+    DISCUSS_ARTIFACT_MAX_CHARS,
+  );
 
-  const system = `You are a senior product manager helping the user reflect on the backlog for one feature.
+  const system = `You are a senior product manager helping the user work through one feature: research, PRD work, and workshop chat.
 
-Context:
-- You have a compact list of saved epic/story titles and keys (not full descriptions).
-- The user may have completed inference and competitor steps earlier; you do not have those full documents in this chat unless summarized in the transcript.
-- Stay focused on prioritization, tradeoffs, risks, validation, and next steps — not rewriting the full spec.
+You are given (when available):
+- Feature metadata and structured clarifications from earlier Q&A.
+- The latest saved **feature inference** and **competitor analysis** artifacts (may be excerpts if very long).
+- A **recent transcript** of the feature thread (user, system, and assistant messages from inference, competitor, PRD, discussion, etc.), newest-heavy within a size limit.
+
+Use this context to answer questions about what was generated, what the team decided, tradeoffs, risks, and next steps. If something is missing or was truncated, say so briefly.
 
 Rules:
-- Do NOT regenerate the full feature inference, competitor report, or issue list unless the user clearly asks you to.
+- Do NOT rewrite or regenerate the full inference document, competitor report, or entire PRD unless the user clearly asks you to.
 - Prefer concise, actionable answers (short paragraphs or bullets).
-- If you lack information, say what you would need to know.`;
+- If you truly lack information, say what you would need to know.`;
 
-  const prompt = `### Feature\n${featureBlock}\n\n### Saved backlog (titles)\n${backlog}\n\n### Recent discussion-only transcript\n${transcript}\n\n### New user message\n${message}`;
+  const prompt = [
+    '### Feature',
+    featureBlock,
+    '',
+    inferenceBlock,
+    '',
+    competitorBlock,
+    '',
+    '### Recent feature thread (chronological excerpts, newest preserved first)',
+    transcript,
+    '',
+    '### New user message',
+    message,
+  ].join('\n');
 
   try {
-    const { text } = await generateText({
+    const { text, usage } = await generateText({
       model: MODEL,
       system,
       prompt,
       maxOutputTokens: 2048,
+    });
+
+    await recordAiUsage(sb, {
+      userId: auth.userId,
+      featureId,
+      source: 'discuss',
+      modelId: MODEL_GPT_4O_MINI,
+      usage,
     });
 
     return NextResponse.json({ reply: text.trim() || '…' });

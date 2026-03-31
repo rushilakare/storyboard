@@ -9,6 +9,7 @@ import {
   sanitizeStorageFilename,
   VIDEO_EXTENSIONS,
 } from '@/lib/knowledge/constants';
+import { recordAiUsage } from '@/lib/ai/recordUsage';
 import { extractKnowledgeText } from '@/lib/knowledge/extractText';
 import { embedAndInsertChunks } from '@/lib/knowledge/persistChunks';
 import { ilikeContainsPattern } from '@/lib/search/escapeIlike';
@@ -244,7 +245,17 @@ async function handleFileUpload(sb: AppSupabase, userId: string, request: Reques
 
   let plain: string;
   try {
-    plain = await extractKnowledgeText(buffer, mime);
+    const extracted = await extractKnowledgeText(buffer, mime);
+    if (extracted.vision) {
+      await recordAiUsage(sb, {
+        userId,
+        featureId: null,
+        source: 'knowledge_ocr',
+        modelId: extracted.vision.modelId,
+        usage: extracted.vision.usage,
+      });
+    }
+    plain = extracted.text;
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Extraction failed';
     await markFailed(sb, documentId, msg, storagePath);

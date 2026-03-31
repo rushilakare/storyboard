@@ -7,9 +7,9 @@ alter table features enable row level security;
 alter table prd_documents enable row level security;
 alter table feature_messages enable row level security;
 alter table feature_artifacts enable row level security;
-alter table feature_issues enable row level security;
 alter table knowledge_documents enable row level security;
 alter table knowledge_chunks enable row level security;
+alter table ai_usage_events enable row level security;
 
 drop policy if exists "workspaces_select_anon" on workspaces;
 drop policy if exists "workspaces_insert_anon" on workspaces;
@@ -236,54 +236,6 @@ create policy "feature_artifacts_delete_own" on feature_artifacts for delete to 
     )
   );
 
-drop policy if exists "feature_issues_select_own" on feature_issues;
-drop policy if exists "feature_issues_insert_own" on feature_issues;
-drop policy if exists "feature_issues_update_own" on feature_issues;
-drop policy if exists "feature_issues_delete_own" on feature_issues;
-
-create policy "feature_issues_select_own" on feature_issues for select to authenticated
-  using (
-    exists (
-      select 1 from features f
-      join workspaces w on w.id = f.workspace_id
-      where f.id = feature_issues.feature_id and w.created_by = auth.uid()
-    )
-  );
-
-create policy "feature_issues_insert_own" on feature_issues for insert to authenticated
-  with check (
-    exists (
-      select 1 from features f
-      join workspaces w on w.id = f.workspace_id
-      where f.id = feature_id and w.created_by = auth.uid()
-    )
-  );
-
-create policy "feature_issues_update_own" on feature_issues for update to authenticated
-  using (
-    exists (
-      select 1 from features f
-      join workspaces w on w.id = f.workspace_id
-      where f.id = feature_issues.feature_id and w.created_by = auth.uid()
-    )
-  )
-  with check (
-    exists (
-      select 1 from features f
-      join workspaces w on w.id = f.workspace_id
-      where f.id = feature_id and w.created_by = auth.uid()
-    )
-  );
-
-create policy "feature_issues_delete_own" on feature_issues for delete to authenticated
-  using (
-    exists (
-      select 1 from features f
-      join workspaces w on w.id = f.workspace_id
-      where f.id = feature_issues.feature_id and w.created_by = auth.uid()
-    )
-  );
-
 drop policy if exists "knowledge_documents_select_own" on knowledge_documents;
 drop policy if exists "knowledge_documents_insert_own" on knowledge_documents;
 drop policy if exists "knowledge_documents_update_own" on knowledge_documents;
@@ -319,3 +271,12 @@ create policy "knowledge_chunks_update_own" on knowledge_chunks for update to au
 
 create policy "knowledge_chunks_delete_own" on knowledge_chunks for delete to authenticated
   using (user_id = auth.uid());
+
+drop policy if exists "ai_usage_events_select_own" on ai_usage_events;
+drop policy if exists "ai_usage_events_insert_own" on ai_usage_events;
+
+create policy "ai_usage_events_select_own" on ai_usage_events for select to authenticated
+  using (user_id = auth.uid());
+
+create policy "ai_usage_events_insert_own" on ai_usage_events for insert to authenticated
+  with check (user_id = auth.uid());

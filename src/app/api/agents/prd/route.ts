@@ -10,8 +10,11 @@ import { requireUser } from '@/lib/auth/require-user';
 import { assembleFeatureContext } from '@/lib/context';
 import { knowledgeBaseHeaders } from '@/lib/knowledge/httpHeaders';
 import { patchFeatureStatus } from '@/lib/prd-persistence';
+import { MODEL_GPT_5_4, recordAiUsage } from '@/lib/ai/recordUsage';
 
 export const maxDuration = 60;
+
+const PRD_MODEL = openai(MODEL_GPT_5_4);
 
 const CONTINUATION_INSTRUCTION = `
 ### Interrupted draft (continue mode)
@@ -65,10 +68,17 @@ export async function POST(request: Request) {
       }
 
       const { textStream } = streamText({
-        model: openai('gpt-5.4-2026-03-05'),
+        model: PRD_MODEL,
         system: systemPrompt,
         messages: context.messages,
-        onFinish: async ({ text }) => {
+        onFinish: async ({ text, totalUsage }) => {
+          await recordAiUsage(sb, {
+            userId: auth.userId,
+            featureId,
+            source: 'prd',
+            modelId: MODEL_GPT_5_4,
+            usage: totalUsage,
+          });
           try {
             const merged =
               continuationPrefix.length > 0 ? `${continuationPrefix}${text}` : text;
@@ -118,14 +128,23 @@ ${PRD_OUTPUT_REQUIREMENTS}`;
     }
 
     const { textStream } = streamText({
-      model: openai('gpt-5.4-2026-03-05'),
+      model: PRD_MODEL,
       prompt,
+      onFinish: async ({ totalUsage }) => {
+        await recordAiUsage(sb, {
+          userId: auth.userId,
+          featureId: null,
+          source: 'prd',
+          modelId: MODEL_GPT_5_4,
+          usage: totalUsage,
+        });
+      },
     });
 
     return new Response(textStream, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
-  } catch (error) {
+  } catch {
     return new Response(
       JSON.stringify({ success: false, error: 'Failed to generate PRD' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },

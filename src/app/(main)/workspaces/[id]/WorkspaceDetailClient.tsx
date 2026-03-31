@@ -20,7 +20,6 @@ import PrdRecoveryBanner from "@/components/PrdRecoveryBanner";
 import PrdDocumentEditor from "@/components/PrdDocumentEditor";
 import { ArtifactListExportSplitButton } from "@/components/DocumentExportSplitButton";
 import FeatureArtifactsPanel from "@/components/artifacts/FeatureArtifactsPanel";
-import FeatureIssuesPanel from "@/components/issues/FeatureIssuesPanel";
 import { buildArtifactFilename, downloadMarkdownFile } from "@/lib/artifactExport";
 import { deriveDocumentTitle } from "@/lib/deriveDocumentTitle";
 import { X } from "lucide-react";
@@ -39,9 +38,7 @@ import {
 const INFERENCE_CHAT_STUB =
   "Feature inference is ready. Use “View feature inference” to read it in the document panel, then approve to continue.";
 const COMPETITOR_CHAT_STUB =
-  "Competitor analysis is ready. Use “View competitor analysis” in the document panel, then approve to plan backlog issues.";
-const ISSUES_PROMPT_CHAT =
-  "Feature inference and competitor analysis are complete. When you're ready, generate an epic and backlog issues from this work.";
+  "Competitor analysis is ready. Use “View competitor analysis” in the document panel, then approve to generate the PRD.";
 
 function appendKnowledgeBaseChatLine(addMessage: (msg: Message) => void, res: Response) {
   if (!res.ok) return;
@@ -76,7 +73,7 @@ function isLikelyFullCompetitorBody(content: string): boolean {
   return content.length > 160;
 }
 
-/** Last inference/competitor in the thread — used when the latest bubble is system/issues_prompt/prd/discussion. */
+/** Last inference/competitor in the thread — used when the latest bubble is system/prd/discussion. */
 function resolveRevisionAgent(messages: Message[]): "inference" | "competitor" {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -84,7 +81,6 @@ function resolveRevisionAgent(messages: Message[]): "inference" | "competitor" {
     if (
       m.agentType === "system" ||
       m.agentType === "discussion" ||
-      m.agentType === "issues_prompt" ||
       m.agentType === "prd"
     ) {
       continue;
@@ -275,7 +271,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const searchParams = useSearchParams();
   const featureParam = searchParams.get("feature");
   const listViewArtifacts = searchParams.get("view") === "artifacts";
-  const panelIssues = searchParams.get("panel") === "issues";
   const panelArtifacts = searchParams.get("panel") === "artifacts";
   const artifactParam = searchParams.get("artifact");
 
@@ -315,13 +310,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [featureStatus, setFeatureStatus] = useState<string | null>(null);
   const [prdRecoveryPromptOpen, setPrdRecoveryPromptOpen] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [launchIssuesGenerateToken, setLaunchIssuesGenerateToken] = useState(0);
   const [artifactsHeaderMeta, setArtifactsHeaderMeta] = useState<{
     kind: string;
     title: string;
   } | null>(null);
-  /** After issues are saved once, composer uses backlog discussion API instead of infer/competitor. */
-  const [discussionMode, setDiscussionMode] = useState(false);
   /** Clarifying modal is the pre-inference Q&A step (not post-stream JSON questions). */
   const [clarifyingIsPreInference, setClarifyingIsPreInference] = useState(false);
   const [featureCreateError, setFeatureCreateError] = useState<string | null>(null);
@@ -345,24 +337,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setIsSplitView(false);
     setArtifactsHeaderMeta(null);
   }, [router, workspaceId, searchParams, featureParam]);
-
-  const openIssuesPanel = useCallback(() => {
-    if (!featureParam) return;
-    if (documentPanelKind === "prd" && prdContentDirtyRef.current) {
-      if (!window.confirm("Discard unsaved PRD changes and open Issues?")) return;
-    }
-    const p = new URLSearchParams(searchParams.toString());
-    p.set("feature", featureParam);
-    p.set("panel", "issues");
-    p.delete("artifact");
-    router.push(`/workspaces/${workspaceId}?${p.toString()}`);
-    setIsSplitView(true);
-    setArtifactsHeaderMeta(null);
-  }, [featureParam, router, workspaceId, searchParams, documentPanelKind]);
-
-  const handleLaunchGenerateConsumed = useCallback(() => {
-    setLaunchIssuesGenerateToken(0);
-  }, []);
 
   const openArtifactsPanel = useCallback(() => {
     if (!featureParam) return;
@@ -453,33 +427,11 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   );
 
   const chatComposerPlaceholder = useMemo(() => {
-    if (discussionMode) {
-      return "Ask about this backlog, tradeoffs, or next steps…";
-    }
     if (featureStatus === "done") {
-      return "Describe changes to inference or competitor. Open Issues → Regenerate to replace generated backlog.";
+      return "Describe changes you want in the PRD…";
     }
     return undefined;
-  }, [featureStatus, discussionMode]);
-
-  const handleIssuesCommitted = useCallback(() => {
-    setDiscussionMode(true);
-    const line =
-      "Issues saved. To replace them with a new AI draft, open the Issues panel and click Regenerate.";
-    const id = `${Date.now()}-sys-issues-saved`;
-    setMessages((prev) => [
-      ...prev,
-      {
-        id,
-        role: "agent",
-        agentType: "system",
-        content: line,
-        status: "done",
-      },
-    ]);
-    const fid = featureId;
-    if (fid) void persistMessage(fid, "system", line, "system");
-  }, [featureId, persistMessage]);
+  }, [featureStatus]);
 
   const finalizePrdAndPersistAssistant = useCallback(
     async (fid: string, fullMarkdown: string) => {
@@ -522,6 +474,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           /* ignore */
         }
       }
+      return line;
     },
     [persistMessage],
   );
@@ -700,7 +653,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setIsModalOpen(false);
     setClarifyingOpen(false);
     setPendingClarifyingQuestions([]);
-    setDiscussionMode(false);
     setClarifyingIsPreInference(false);
     preInferenceClarifyPendingRef.current = false;
     setFeatureCreateError(null);
@@ -813,10 +765,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   }, [featureParam]);
 
   useEffect(() => {
-    if (featureParam && (panelIssues || panelArtifacts)) {
+    if (featureParam && panelArtifacts) {
       setIsSplitView(true);
     }
-  }, [featureParam, panelIssues, panelArtifacts]);
+  }, [featureParam, panelArtifacts]);
 
   // Hydrate feature + persisted messages from DB
   useEffect(() => {
@@ -900,7 +852,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             const needsReview =
               (data.status === "draft" && lastAgent.agentType === "inference") ||
               (data.status === "in_progress" && lastAgent.agentType === "competitor") ||
-              (data.status === "review" && lastAgent.agentType === "issues_prompt");
+              (data.status === "review" && lastAgent.agentType === "prd");
             if (needsReview) {
               uiMsgs[realIdx] = { ...lastAgent, status: "needs_review" };
             }
@@ -910,17 +862,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
           if (["review", "done"].includes(data.status) && prdText) {
             setDocumentPanelKind("prd");
-            setIsSplitView(true);
-          } else if (
-            data.status === "review" &&
-            uiMsgs.some(
-              (m) =>
-                m.role === "agent" &&
-                m.agentType === "issues_prompt" &&
-                m.status === "needs_review",
-            )
-          ) {
-            setDocumentPanelKind("competitor");
             setIsSplitView(true);
           } else if (data.status === "draft") {
             const hasInf = uiMsgs.some(
@@ -968,7 +909,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 id: `loaded-comp-${data.id}`,
                 role: "agent",
                 agentType: "competitor",
-                content: "Loaded from workspace. Approve to plan backlog issues, or revise.",
+                content: "Loaded from workspace. Approve to generate the PRD, or revise.",
                 status: "needs_review",
               },
             ]);
@@ -1156,76 +1097,28 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       .reverse()
       .find((m) => m.role === "agent" && m.agentType !== "system");
 
-    if (lastAgentMsg?.agentType === "issues_prompt" && lastAgentMsg.status === "needs_review") {
-      return;
-    }
-    if (lastAgentMsg?.agentType === "prd") {
+    if (lastAgentMsg?.agentType === "prd" && lastAgentMsg.status === "pending") {
       return;
     }
 
-    const fidDiscuss = featureId;
-    if (discussionMode && fidDiscuss) {
-      const userId = `${Date.now()}-user`;
-      const agentId = `${Date.now()}-discuss`;
-      addMessage({ id: userId, role: "user", content: text });
-      await persistMessage(fidDiscuss, "user", text);
-      addMessage({
-        id: agentId,
-        role: "agent",
-        agentType: "discussion",
-        content: "Thinking…",
-        status: "pending",
-      });
-      setIsLoading(true);
-      try {
-        const res = await fetch(`/api/features/${fidDiscuss}/discuss`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
-        });
-        const body = await res.json().catch(() => ({}));
-        const reply =
-          typeof (body as { reply?: string }).reply === "string"
-            ? (body as { reply: string }).reply
-            : `Error: ${typeof (body as { error?: string }).error === "string" ? (body as { error: string }).error : res.statusText}`;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === agentId
-              ? { ...m, content: reply, status: "done" as const }
-              : m,
-          ),
-        );
-        if (res.ok) {
-          await persistMessage(fidDiscuss, "assistant", reply, "discussion");
-        }
-      } catch (e) {
-        console.error(e);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === agentId
-              ? {
-                  ...m,
-                  content: e instanceof Error ? e.message : "Discussion request failed",
-                  status: "done" as const,
-                }
-              : m,
-          ),
-        );
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
+    const isPrdRevision =
+      featureStatus === "done" ||
+      (lastAgentMsg?.agentType === "prd" &&
+        lastAgentMsg.status !== "pending" &&
+        lastAgentMsg.status !== undefined);
 
     const agentType = resolveRevisionAgent(messagesRef.current);
-    const endpoint = agentType === "competitor" ? "/api/agents/competitor" : "/api/agents/infer";
+    const endpoint = isPrdRevision
+      ? "/api/agents/prd"
+      : agentType === "competitor"
+        ? "/api/agents/competitor"
+        : "/api/agents/infer";
 
-    const isPrd = false; /* was: endpoint === "/api/agents/prd" — PRD stream from composer disabled */
     const agentMsgId = Date.now().toString() + "-agent";
 
     setInferenceReviseHint(false);
 
-    if (!isPrd && agentType === "inference") {
+    if (!isPrdRevision && agentType === "inference") {
       setMessages((prev) =>
         prev.map((m) =>
           m.role === "agent" && m.agentType === "inference" && m.status === "needs_review"
@@ -1233,7 +1126,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             : m,
         ),
       );
-    } else if (!isPrd && agentType === "competitor") {
+    } else if (!isPrdRevision && agentType === "competitor") {
       setMessages((prev) =>
         prev.map((m) =>
           m.role === "agent" && m.agentType === "competitor" && m.status === "needs_review"
@@ -1250,7 +1143,19 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       await persistMessage(fid, "user", text);
     }
 
-    if (!isPrd) {
+    if (isPrdRevision) {
+      setDocumentPanelKind("prd");
+      setIsSplitView(true);
+      prdStreamingBufferRef.current = "";
+      if (fid) await postBeginPrdDraft(fid);
+      addMessage({
+        id: agentMsgId,
+        role: "agent",
+        agentType: "prd",
+        content: "Generating PRD…",
+        status: "pending",
+      });
+    } else {
       if (agentType === "inference") {
         setDocumentPanelKind("inference");
         setIsSplitView(true);
@@ -1275,14 +1180,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     streamingRef.current = true;
     setIsLoading(true);
     let agentContent = "";
-    /* PRD revision branch (disabled)
-    if (isPrd) {
-      setDocumentPanelKind("prd");
-      setIsSplitView(true);
-      prdStreamingBufferRef.current = "";
-      if (fid) await postBeginPrdDraft(fid);
-    }
-    */
+    let prdFetchSucceeded = false;
+    let prdStreamError = false;
+
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -1292,7 +1192,29 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       if (!res.ok) {
         const err = await res.text();
         console.error("Agent request failed", err);
-        if (!isPrd) {
+        if (isPrdRevision) {
+          setStreamError(err || res.statusText);
+          setPrdRecoveryPromptOpen(true);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === agentMsgId
+                ? {
+                    ...m,
+                    content: `Error: ${err || res.statusText}`,
+                    status: "needs_review" as const,
+                  }
+                : m,
+            ),
+          );
+          if (fid) {
+            await fetch(`/api/features/${fid}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "review" }),
+            });
+            setFeatureStatus("review");
+          }
+        } else {
           setMessages((prev) =>
             prev.map((m) =>
               m.id === agentMsgId
@@ -1300,14 +1222,11 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 : m,
             ),
           );
-        } else {
-          setStreamError(err || res.statusText);
         }
-      } else if (isPrd) {
-        /* disabled
-        if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
+      } else if (isPrdRevision) {
+        prdFetchSucceeded = true;
+        appendKnowledgeBaseChatLine(addMessage, res);
         agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
-        */
       } else {
         if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
         if (res.body) {
@@ -1342,30 +1261,76 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       }
     } catch (e) {
       console.error(e);
-      if (isPrd) {
-        setStreamError(e instanceof Error ? e.message : "Stream failed");
+      if (isPrdRevision) {
+        prdStreamError = true;
+        const msg = e instanceof Error ? e.message : "Stream failed";
+        setStreamError(msg);
+        setPrdRecoveryPromptOpen(true);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === agentMsgId
+              ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const }
+              : m,
+          ),
+        );
+        if (fid) {
+          await fetch(`/api/features/${fid}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "review" }),
+          });
+          setFeatureStatus("review");
+        }
       }
     }
 
-    if (fid && agentContent) {
-      if (isPrd) {
-        /* disabled
-        try {
-          await finalizePrdAndPersistAssistant(fid, agentContent);
-          prdContentDirtyRef.current = false;
-          setSavedPrd(true);
-        } catch (pe) {
-          console.error("Failed to save PRD after revision", pe);
-        }
-        */
-      } else if (agentType === "inference") {
+    if (isPrdRevision && fid && agentContent) {
+      try {
+        const line = await finalizePrdAndPersistAssistant(fid, agentContent);
+        prdContentDirtyRef.current = false;
+        setSavedPrd(true);
+        await fetch(`/api/features/${fid}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done" }),
+        });
+        setFeatureStatus("done");
+        setPrdRecoveryPromptOpen(false);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === agentMsgId ? { ...m, content: line, status: "done" as const } : m,
+          ),
+        );
+      } catch (pe) {
+        console.error("Failed to save PRD after revision", pe);
+      }
+    } else if (
+      isPrdRevision &&
+      fid &&
+      prdFetchSucceeded &&
+      !agentContent &&
+      !prdStreamError
+    ) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === agentMsgId
+            ? {
+                ...m,
+                content: "PRD revision produced no content.",
+                status: "needs_review" as const,
+              }
+            : m,
+        ),
+      );
+    } else if (fid && agentContent && !isPrdRevision) {
+      if (agentType === "inference") {
         await persistMessage(fid, "assistant", agentContent, agentType);
       } else {
         await persistMessage(fid, "assistant", agentContent, agentType);
       }
     }
 
-    if (isPrd) {
+    if (isPrdRevision) {
       prdStreamingBufferRef.current = "";
     }
     setIsLoading(false);
@@ -1448,20 +1413,10 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         }
         streamingRef.current = false;
       } else if (agentType === "competitor") {
-        if (fid) {
-          await fetch(`/api/features/${fid}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "review" }),
-          });
-          setFeatureStatus("review");
-        }
-
-        setDocumentPanelKind("competitor");
+        setDocumentPanelKind("prd");
         setIsSplitView(true);
 
-        const sysContent =
-          "Feature inference and competitor analysis are saved. When you're ready, generate an epic and backlog issues.";
+        const sysContent = "Great! Generating the PRD document…";
         addMessage({
           id: Date.now().toString() + "sys",
           role: "agent",
@@ -1470,59 +1425,111 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         });
         if (fid) void persistMessage(fid, "system", sysContent, "system");
 
-        const issuesPromptId = Date.now().toString() + "-issues-prompt";
-        addMessage({
-          id: issuesPromptId,
-          role: "agent",
-          agentType: "issues_prompt",
-          content: ISSUES_PROMPT_CHAT,
-          status: "needs_review",
-        });
-        if (fid) {
-          await persistMessage(fid, "assistant", ISSUES_PROMPT_CHAT, "issues_prompt");
-        }
-
-        /* PRD auto-run after competitor (disabled to save tokens — use Issues panel instead)
-        setDocumentPanelKind("prd");
-        const sysContent = "Great! Generating the PRD Document...";
-        addMessage({ ... });
-        if (fid) {
-          await fetch(..., { status: "generating" });
-          setFeatureStatus("generating");
-          setPrdRecoveryPromptOpen(false);
-          await postBeginPrdDraft(fid);
-        }
-        const prdMsgId = ...;
-        addMessage({ agentType: "prd", ... });
-        streamingRef.current = true;
-        prdStreamingBufferRef.current = "";
-        setStreamError(null);
-        try {
-          const res = await fetch("/api/agents/prd", { method: "POST", body: JSON.stringify({ featureId: fid, ...featureData }) });
-          if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
-          const agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
-          setMessages(...);
-          if (fid && agentContent) {
-            await finalizePrdAndPersistAssistant(fid, agentContent);
-            await fetch(`/api/features/${fid}`, { method: "PATCH", body: JSON.stringify({ status: "done" }) });
-            setFeatureStatus("done");
-            prdContentDirtyRef.current = false;
-            setSavedPrd(true);
-          }
-        } catch (e) { ... }
-        finally { streamingRef.current = false; prdStreamingBufferRef.current = ""; }
-        */
-      } else if (agentType === "issues_prompt") {
         if (fid) {
           await fetch(`/api/features/${fid}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "done" }),
+            body: JSON.stringify({ status: "generating" }),
           });
-          setFeatureStatus("done");
+          setFeatureStatus("generating");
+          setPrdRecoveryPromptOpen(false);
+          await postBeginPrdDraft(fid);
         }
-        openIssuesPanel();
-        setLaunchIssuesGenerateToken((t) => t + 1);
+
+        const prdMsgId = `${Date.now()}-prd-start`;
+        addMessage({
+          id: prdMsgId,
+          role: "agent",
+          agentType: "prd",
+          content: "Generating PRD…",
+          status: "pending",
+        });
+
+        streamingRef.current = true;
+        prdStreamingBufferRef.current = "";
+        setStreamError(null);
+
+        try {
+          const res = await fetch("/api/agents/prd", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ featureId: fid, ...featureData }),
+          });
+
+          if (!res.ok) {
+            const err = await res.text();
+            setStreamError(err || res.statusText);
+            setPrdRecoveryPromptOpen(true);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === prdMsgId
+                  ? { ...m, content: `Error: ${err || res.statusText}`, status: "needs_review" as const }
+                  : m,
+              ),
+            );
+            if (fid) {
+              await fetch(`/api/features/${fid}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "review" }),
+              });
+              setFeatureStatus("review");
+            }
+          } else {
+            appendKnowledgeBaseChatLine(addMessage, res);
+            const agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
+            if (fid && agentContent) {
+              const line = await finalizePrdAndPersistAssistant(fid, agentContent);
+              await fetch(`/api/features/${fid}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "done" }),
+              });
+              setFeatureStatus("done");
+              prdContentDirtyRef.current = false;
+              setSavedPrd(true);
+              setPrdRecoveryPromptOpen(false);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === prdMsgId ? { ...m, content: line, status: "done" as const } : m,
+                ),
+              );
+            } else {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === prdMsgId
+                    ? {
+                        ...m,
+                        content: "PRD generation produced no content.",
+                        status: "needs_review" as const,
+                      }
+                    : m,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          console.error(e);
+          const msg = e instanceof Error ? e.message : "PRD stream failed";
+          setStreamError(msg);
+          setPrdRecoveryPromptOpen(true);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === prdMsgId ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const } : m,
+            ),
+          );
+          if (fid) {
+            await fetch(`/api/features/${fid}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "review" }),
+            });
+            setFeatureStatus("review");
+          }
+        } finally {
+          streamingRef.current = false;
+          prdStreamingBufferRef.current = "";
+        }
       }
     } catch (e) {
       console.error(e);
@@ -1888,11 +1895,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           <>
             <h2 className={styles.listSectionTitle}>Artifacts</h2>
             <p className={styles.listDescription} style={{ marginBottom: 16 }}>
-              Documents across this workspace. Manage issues from a feature (Issues panel) or from{" "}
-              <Link href="/issues" className={styles.artifactFeatureLink}>
-                Issues
-              </Link>{" "}
-              in the sidebar.
+              Documents across this workspace. Open a feature to view or export artifacts from the Artifacts
+              panel.
             </p>
             <div className={styles.listSearchRow}>
               <input
@@ -2010,14 +2014,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             </div>
             <div className={styles.chatPaneHeaderRight}>
               {featureId && featureParam && chatStarted ? (
-                <>
-                  <button type="button" className={styles.mockBtn} onClick={openArtifactsPanel}>
-                    Artifacts
-                  </button>
-                  <button type="button" className={styles.mockBtn} onClick={openIssuesPanel}>
-                    Issues
-                  </button>
-                </>
+                <button type="button" className={styles.mockBtn} onClick={openArtifactsPanel}>
+                  Artifacts
+                </button>
               ) : null}
             </div>
           </header>
@@ -2064,14 +2063,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         <div className={styles.editorPane}>
           <header className={styles.paneHeader}>
             <div className={styles.editorPaneHeaderInner}>
-              {panelIssues ? (
-                <h2 className={styles.editorPaneTitleWithFormat}>
-                  <span className={styles.docPanelKindBadge}>Issues</span>
-                  <span className={styles.docPanelDerivedTitle}>
-                    {featureData?.name ?? "Feature"}
-                  </span>
-                </h2>
-              ) : panelArtifacts ? (
+              {panelArtifacts ? (
                 <h2 className={styles.editorPaneTitleWithFormat}>
                   <span className={styles.docPanelKindBadge}>
                     {artifactParam && artifactsHeaderMeta
@@ -2099,7 +2091,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 </h2>
               )}
               <div className={styles.editorPaneToolbarRight}>
-                {!panelIssues && !panelArtifacts && documentPanelKind === "prd" ? (
+                {!panelArtifacts && documentPanelKind === "prd" ? (
                   <button
                     type="button"
                     className={styles.mockBtn}
@@ -2109,7 +2101,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                     {savingPrd ? "Saving..." : savedPrd ? "✓ Saved" : "Save Changes"}
                   </button>
                 ) : null}
-                {!panelIssues && !panelArtifacts ? (
+                {!panelArtifacts ? (
                   <button
                     type="button"
                     className={styles.mockBtn}
@@ -2122,11 +2114,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 <button
                   type="button"
                   className={styles.closeDocBtn}
-                  aria-label={
-                    panelIssues || panelArtifacts ? "Close side panel" : "Close document"
-                  }
+                  aria-label={panelArtifacts ? "Close side panel" : "Close document"}
                   onClick={() => {
-                    if (panelIssues || panelArtifacts) {
+                    if (panelArtifacts) {
                       closeRightPane();
                     } else {
                       setIsSplitView(false);
@@ -2138,16 +2128,14 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               </div>
             </div>
           </header>
-          {!panelIssues &&
-          !panelArtifacts &&
+          {!panelArtifacts &&
           documentPanelKind === "prd" &&
           streamError ? (
             <div className={styles.streamError} role="alert">
               {streamError}
             </div>
           ) : null}
-          {!panelIssues &&
-          !panelArtifacts &&
+          {!panelArtifacts &&
           documentPanelKind === "prd" &&
           prdRecoveryPromptOpen &&
           featureStatus === "generating" ? (
@@ -2161,22 +2149,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           ) : null}
           <div
             className={
-              (panelIssues || panelArtifacts) && featureId
+              panelArtifacts && featureId
                 ? `${styles.editorContent} ${styles.editorContentIssues}`
                 : styles.editorContent
             }
           >
-            {panelIssues && featureId ? (
-              <FeatureIssuesPanel
-                featureId={featureId}
-                workspaceId={workspaceId}
-                workspaceName={workspace?.name ?? "Workspace"}
-                featureName={featureData?.name ?? "Feature"}
-                launchGenerateToken={launchIssuesGenerateToken}
-                onLaunchGenerateConsumed={handleLaunchGenerateConsumed}
-                onIssuesCommitted={handleIssuesCommitted}
-              />
-            ) : panelArtifacts && featureId ? (
+            {panelArtifacts && featureId ? (
               <FeatureArtifactsPanel
                 workspaceId={workspaceId}
                 featureId={featureId}

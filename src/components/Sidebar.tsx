@@ -1,29 +1,60 @@
 'use client';
 
+import * as Popover from '@radix-ui/react-popover';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { ChevronUp, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
+import { useEffect, useMemo, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import GlobalSearch from '@/components/GlobalSearch';
+import { createBrowserSupabaseClient } from '@/lib/supabase/browser';
 import styles from './Sidebar.module.css';
+
+function displayLabel(user: User | null): string {
+  if (!user) return 'Account';
+  const meta = user.user_metadata as Record<string, unknown> | undefined;
+  const full =
+    typeof meta?.full_name === 'string' && meta.full_name.trim()
+      ? meta.full_name.trim()
+      : typeof meta?.name === 'string' && meta.name.trim()
+        ? meta.name.trim()
+        : '';
+  if (full) return full;
+  const em = user.email?.split('@')[0] ?? '';
+  return em || 'Account';
+}
+
+function initials(user: User | null): string {
+  const label = displayLabel(user);
+  if (label === 'Account') return '?';
+  const parts = label.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return label.slice(0, 2).toUpperCase();
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [email, setEmail] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
     supabase.auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? null);
+      setUser(data.user ?? null);
     });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setEmail(session?.user?.email ?? null);
+      setUser(session?.user ?? null);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  const label = useMemo(() => displayLabel(user), [user]);
+  const av = useMemo(() => initials(user), [user]);
 
   return (
     <aside className={styles.sidebar}>
@@ -66,25 +97,57 @@ export default function Sidebar() {
         >
           Artifacts
         </Link>
-        <Link
-          href="/issues"
-          className={`${styles.navItem} ${pathname === '/issues' || pathname.startsWith('/issues/') ? styles.navItemActive : ''}`}
-        >
-          Issues
-        </Link>
       </div>
 
       <div className={styles.footer}>
-        {email ? (
-          <div className={styles.userEmail} title={email}>
-            {email}
-          </div>
-        ) : null}
-        <form action="/auth/sign-out" method="post">
-          <button type="submit" className={styles.signOut}>
-            Sign out
-          </button>
-        </form>
+        <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              className={styles.profileTrigger}
+              aria-expanded={menuOpen}
+              aria-haspopup="dialog"
+            >
+              <span className={styles.avatar} aria-hidden>
+                {av}
+              </span>
+              <span className={styles.profileText}>
+                <span className={styles.profileName}>{label}</span>
+              </span>
+              <ChevronUp className={styles.profileChevron} size={16} aria-hidden />
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              className={styles.popoverContent}
+              side="top"
+              align="start"
+              sideOffset={8}
+              collisionPadding={16}
+            >
+              {user?.email ? (
+                <div className={styles.popoverEmail} title={user.email}>
+                  {user.email}
+                </div>
+              ) : null}
+              <div className={styles.popoverDivider} />
+              <Link
+                href="/settings"
+                className={styles.popoverItem}
+                onClick={() => setMenuOpen(false)}
+              >
+                <Settings size={16} aria-hidden />
+                <span>Settings</span>
+              </Link>
+              <form action="/auth/sign-out" method="post" className={styles.popoverSignOutForm}>
+                <button type="submit" className={styles.popoverItem}>
+                  <LogOut size={16} aria-hidden />
+                  <span>Log out</span>
+                </button>
+              </form>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
       </div>
     </aside>
   );

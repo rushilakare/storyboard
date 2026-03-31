@@ -1,5 +1,6 @@
 import './pdfDomPolyfill';
 
+import { MODEL_GPT_4O_MINI, type ProviderUsageTokens } from '@/lib/ai/recordUsage';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import mammoth from 'mammoth';
@@ -40,9 +41,12 @@ export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
   return (value ?? '').trim();
 }
 
-export async function extractTextFromImage(buffer: Buffer, mimeType: string): Promise<string> {
-  const { text } = await generateText({
-    model: openai('gpt-4o-mini'),
+export async function extractTextFromImage(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<{ text: string; usage: ProviderUsageTokens | undefined }> {
+  const { text, usage } = await generateText({
+    model: openai(MODEL_GPT_4O_MINI),
     messages: [
       {
         role: 'user',
@@ -56,25 +60,35 @@ export async function extractTextFromImage(buffer: Buffer, mimeType: string): Pr
       },
     ],
   });
-  return text.trim();
+  return { text: text.trim(), usage };
 }
+
+export type KnowledgeExtractResult = {
+  text: string;
+  /** Present when vision model was used for image uploads */
+  vision?: { usage: ProviderUsageTokens | undefined; modelId: string };
+};
 
 export async function extractKnowledgeText(
   buffer: Buffer,
   mimeType: string,
-): Promise<string> {
+): Promise<KnowledgeExtractResult> {
   if (mimeType === 'application/pdf') {
-    return extractTextFromPdf(buffer);
+    return { text: await extractTextFromPdf(buffer) };
   }
   if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
     mimeType === 'application/msword'
   ) {
-    return extractTextFromDocx(buffer);
+    return { text: await extractTextFromDocx(buffer) };
   }
   if (mimeType.startsWith('image/')) {
-    return extractTextFromImage(buffer, mimeType);
+    const { text, usage } = await extractTextFromImage(buffer, mimeType);
+    return {
+      text,
+      vision: { usage, modelId: MODEL_GPT_4O_MINI },
+    };
   }
   const asText = buffer.toString('utf8');
-  return asText.trim();
+  return { text: asText.trim() };
 }

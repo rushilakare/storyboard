@@ -6,7 +6,7 @@ import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferen
 export interface Message {
   id: string;
   role: "user" | "agent";
-  agentType?: "inference" | "competitor" | "prd" | "system" | "issues_prompt" | "discussion";
+  agentType?: "inference" | "competitor" | "prd" | "system" | "discussion";
   content: string;
   status?: "pending" | "done" | "needs_review";
   clarifyingQuestions?: ClarifyingQuestion[];
@@ -28,7 +28,7 @@ interface ChatProps {
   inferenceReviseHint?: boolean;
   /** Increment to focus the composer (e.g. after closing clarifying modal for rework). */
   focusComposerToken?: number;
-  /** Overrides default revise placeholder (e.g. after issues workflow). */
+  /** Overrides default revise placeholder. */
   composerPlaceholder?: string;
   /** Clarifying modal opened before the first inference draft. */
   clarifyingPreInference?: boolean;
@@ -147,36 +147,6 @@ export default function ChatInterface({
                     </button>
                   </div>
                 )}
-
-              {msg.status === "needs_review" && !isLoading && msg.agentType === "issues_prompt" && (
-                <div className={styles.actions}>
-                  {onViewAgentDocument ? (
-                    <>
-                      <button
-                        type="button"
-                        className={styles.reviseBtn}
-                        onClick={() => onViewAgentDocument("inference")}
-                      >
-                        View feature inference
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.reviseBtn}
-                        onClick={() => onViewAgentDocument("competitor")}
-                      >
-                        View competitor analysis
-                      </button>
-                    </>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={styles.approveBtn}
-                    onClick={() => onApprove(msg.id, "issues_prompt")}
-                  >
-                    Looks good — generate issues
-                  </button>
-                </div>
-              )}
 
               {msg.status === "needs_review" && !isLoading && msg.agentType === "prd" && (
                 <div className={styles.actions}>

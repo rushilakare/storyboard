@@ -1,12 +1,13 @@
 import { generateText, Output } from 'ai';
 import { openai } from '@ai-sdk/openai';
+import { MODEL_GPT_4O_MINI, recordAiUsage } from '@/lib/ai/recordUsage';
 import { requireUser } from '@/lib/auth/require-user';
 import { inferQuestionsResponseSchema } from '@/lib/inferQuestionsSchema';
 
 export const maxDuration = 60;
 
 /** gpt-4o-mini: reliable structured output; gpt-5.4 id can throw AI_APICallError if unavailable on the account. */
-const MODEL = openai('gpt-4o-mini');
+const MODEL = openai(MODEL_GPT_4O_MINI);
 
 const SYSTEM = `You are a product manager assistant. Given only a short feature brief, produce clarifying questions that will improve the quality of a later feature-inference draft.
 
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { output } = await generateText({
+    const { output, usage } = await generateText({
       model: MODEL,
       output: Output.object({
         schema: inferQuestionsResponseSchema,
@@ -84,6 +85,14 @@ export async function POST(request: Request) {
       }),
       system: SYSTEM,
       prompt: `Feature brief:\n${brief}\n\nReturn clarifying questions only.`,
+    });
+
+    await recordAiUsage(auth.supabase, {
+      userId: auth.userId,
+      featureId,
+      source: 'infer_questions',
+      modelId: MODEL_GPT_4O_MINI,
+      usage,
     });
 
     if (!output) {

@@ -78,26 +78,108 @@
   gap: 8px;
 }
 
-.userEmail {
+.profileTrigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.profileTrigger:hover {
+  background-color: var(--bg-surface-hover);
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-surface-active);
+  color: var(--text-secondary);
   font-size: 11px;
-  color: var(--text-muted);
-  padding: 0 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profileText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profileName {
+  font-size: 13px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.signOut {
-  width: 100%;
-  text-align: left;
-  padding: 8px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
+.profileChevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
-.signOut:hover {
-  background-color: var(--bg-surface-hover);
+.popoverContent {
+  z-index: 50;
+  min-width: 220px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.popoverEmail {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 8px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popoverDivider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+.popoverItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+}
+
+.popoverItem:hover {
+  background: var(--bg-surface-hover);
   color: var(--text-primary);
+}
+
+.popoverSignOutForm {
+  margin: 0;
+  padding: 0;
 }
