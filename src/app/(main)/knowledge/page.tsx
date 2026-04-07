@@ -159,7 +159,7 @@ function KnowledgePageContent() {
         <h1 className={styles.title}>Knowledge base</h1>
         <p className={styles.subtitle}>
           Add files or pasted text as global reference material. Relevant excerpts are retrieved automatically when you
-          work on features (inference, competitor, PRD). Video uploads are not supported.
+          work on features (inference, PRD). Video uploads are not supported.
         </p>
       </header>
 
