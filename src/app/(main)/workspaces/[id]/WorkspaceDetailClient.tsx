@@ -198,8 +198,6 @@ function workspaceArtifactKindLabel(kind: string) {
       return "PRD";
     case "inference":
       return "Inference";
-    case "competitor":
-      return "Competitors";
     default:
       return kind;
   }
@@ -207,8 +205,7 @@ function workspaceArtifactKindLabel(kind: string) {
 
 function panelKindFallbackLabel(kind: DocumentPanelKind): string {
   if (kind === "prd") return "PRD";
-  if (kind === "inference") return "Feature inference";
-  return "Competitor analysis";
+  return "Feature inference";
 }
 
 interface WorkspaceArtifactRow {
@@ -1114,11 +1111,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         lastAgentMsg.status !== undefined);
 
     const agentType = resolveRevisionAgent(messagesRef.current);
-    const endpoint = isPrdRevision
-      ? "/api/agents/prd"
-      : agentType === "competitor"
-        ? "/api/agents/competitor"
-        : "/api/agents/infer";
+    const endpoint = isPrdRevision ? "/api/agents/prd" : "/api/agents/infer";
 
     const agentMsgId = Date.now().toString() + "-agent";
 
@@ -1128,14 +1121,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       setMessages((prev) =>
         prev.map((m) =>
           m.role === "agent" && m.agentType === "inference" && m.status === "needs_review"
-            ? { ...m, status: "done" as const }
-            : m,
-        ),
-      );
-    } else if (!isPrdRevision && agentType === "competitor") {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.role === "agent" && m.agentType === "competitor" && m.status === "needs_review"
             ? { ...m, status: "done" as const }
             : m,
         ),
@@ -1166,19 +1151,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         setDocumentPanelKind("inference");
         setIsSplitView(true);
         setInferenceDocument("");
-      } else if (agentType === "competitor") {
-        setDocumentPanelKind("competitor");
-        setIsSplitView(true);
-        setCompetitorDocument("");
       }
       addMessage({
         id: agentMsgId,
         role: "agent",
-        agentType: agentType,
-        content:
-          agentType === "inference"
-            ? "Generating feature inference…"
-            : "Generating competitor analysis…",
+        agentType: "inference",
+        content: "Generating feature inference…",
         status: "pending",
       });
     }
@@ -1255,13 +1233,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             } else {
               setPendingClarifyingQuestions([]);
             }
-          } else {
-            agentContent = await streamCompetitorToDocument(
-              reader,
-              agentMsgId,
-              setMessages,
-              setCompetitorDocument,
-            );
           }
         }
       }
@@ -1354,71 +1325,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
     try {
       if (agentType === "inference") {
-        if (fid) {
-          await fetch(`/api/features/${fid}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "in_progress" }),
-          });
-        }
-
-        const sysContent = "Great! Sending to Competitor Research Agent...";
-        addMessage({
-          id: Date.now().toString() + "sys",
-          role: "agent",
-          agentType: "system",
-          content: sysContent,
-        });
-        if (fid) persistMessage(fid, "system", sysContent, "system");
-
-        setCompetitorDocument("");
-        setDocumentPanelKind("competitor");
-        setIsSplitView(true);
-
-        const compMsgId = Date.now().toString() + "-comp";
-        addMessage({
-          id: compMsgId,
-          role: "agent",
-          agentType: "competitor",
-          content: "Generating competitor analysis…",
-          status: "pending",
-        });
-
-        streamingRef.current = true;
-        let agentContent = "";
-        const res = await fetch("/api/agents/competitor", {
-          method: "POST",
-          body: JSON.stringify({ featureId: fid, ...featureData }),
-        });
-
-        if (!res.ok) {
-          const err = await res.text();
-          console.error("Competitor agent failed", err);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === compMsgId
-                ? { ...m, content: `Error: ${err || res.statusText}`, status: "needs_review" }
-                : m,
-            ),
-          );
-        } else {
-          appendKnowledgeBaseChatLine(addMessage, res);
-          if (res.body) {
-            const reader = res.body.getReader();
-            agentContent = await streamCompetitorToDocument(
-              reader,
-              compMsgId,
-              setMessages,
-              setCompetitorDocument,
-            );
-          }
-        }
-
-        if (fid && agentContent) {
-          await persistMessage(fid, "assistant", agentContent, "competitor");
-        }
-        streamingRef.current = false;
-      } else if (agentType === "competitor") {
         setDocumentPanelKind("prd");
         setIsSplitView(true);
 
@@ -1515,13 +1421,15 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             }
           }
         } catch (e) {
-          console.error(e);
-          const msg = e instanceof Error ? e.message : "PRD stream failed";
+          console.error("PRD stream error", e);
+          const msg = e instanceof Error ? e.message : "Stream failed";
           setStreamError(msg);
           setPrdRecoveryPromptOpen(true);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === prdMsgId ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const } : m,
+              m.id === prdMsgId
+                ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const }
+                : m,
             ),
           );
           if (fid) {
@@ -1924,7 +1832,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               <div className={styles.listEmpty}>
                 {debouncedArtifactListSearch.trim()
                   ? "No artifacts match your search."
-                  : "No artifacts in this workspace yet. Complete inference, competitor analysis, or PRD generation on a feature."}
+                  : "No artifacts in this workspace yet. Complete inference or PRD generation on a feature."}
               </div>
             ) : (
               <div className={styles.artifactsTableWrap}>
