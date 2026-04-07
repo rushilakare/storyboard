@@ -33,12 +33,14 @@ import {
   formatKnowledgeBaseChatNote,
   parseKnowledgeBaseFromHeaders,
 } from "@/lib/knowledge/chatNotice";
+import {
+  NEW_FEATURE_BOOTSTRAP_KEY,
+  type NewFeatureBootstrapPayload,
+} from "@/lib/newFeatureBootstrap";
 
 /** Chat shows a stub; full text lives in the document panel and in persisted messages. */
 const INFERENCE_CHAT_STUB =
   "Feature inference is ready. Use “View feature inference” to read it in the document panel, then approve to continue.";
-const COMPETITOR_CHAT_STUB =
-  "Competitor analysis is ready. Use “View competitor analysis” in the document panel, then approve to generate the PRD.";
 
 function appendKnowledgeBaseChatLine(addMessage: (msg: Message) => void, res: Response) {
   if (!res.ok) return;
@@ -54,7 +56,7 @@ function appendKnowledgeBaseChatLine(addMessage: (msg: Message) => void, res: Re
   });
 }
 
-type DocumentPanelKind = "inference" | "competitor" | "prd";
+type DocumentPanelKind = "inference" | "prd";
 
 function narrativeFromPersistedInference(content: string): string {
   if (content.includes("<<<CLARIFYING_QUESTIONS_JSON>>>")) {
@@ -68,25 +70,9 @@ function isLikelyFullInferenceBody(content: string): boolean {
   return content.length > 160 || content.includes("<<<CLARIFYING_QUESTIONS_JSON>>>");
 }
 
-function isLikelyFullCompetitorBody(content: string): boolean {
-  if (content === COMPETITOR_CHAT_STUB) return false;
-  return content.length > 160;
-}
 
-/** Last inference/competitor in the thread — used when the latest bubble is system/prd/discussion. */
-function resolveRevisionAgent(messages: Message[]): "inference" | "competitor" {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== "agent" || !m.agentType) continue;
-    if (
-      m.agentType === "system" ||
-      m.agentType === "discussion" ||
-      m.agentType === "prd"
-    ) {
-      continue;
-    }
-    if (m.agentType === "inference" || m.agentType === "competitor") return m.agentType;
-  }
+/** Returns the revision agent type — always inference since competitor step is removed. */
+function resolveRevisionAgent(_messages: Message[]): "inference" {
   return "inference";
 }
 
@@ -140,34 +126,6 @@ async function consumeInferenceStream(
   return { narrative, questions };
 }
 
-async function streamCompetitorToDocument(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  agentMsgId: string,
-  setMessages: Dispatch<SetStateAction<Message[]>>,
-  setCompetitorDoc: Dispatch<SetStateAction<string>>,
-): Promise<string> {
-  const decoder = new TextDecoder();
-  let full = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    full += decoder.decode(value, { stream: true });
-    setCompetitorDoc(full);
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === agentMsgId ? { ...m, content: "Generating competitor analysis…" } : m,
-      ),
-    );
-  }
-  setMessages((prev) =>
-    prev.map((m) =>
-      m.id === agentMsgId
-        ? { ...m, content: COMPETITOR_CHAT_STUB, status: "needs_review" as const }
-        : m,
-    ),
-  );
-  return full;
-}
 
 interface WorkspaceRow {
   id: string;
@@ -298,7 +256,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   } | null>(null);
   const [prdDocument, setPrdDocument] = useState<string>("");
   const [inferenceDocument, setInferenceDocument] = useState<string>("");
-  const [competitorDocument, setCompetitorDocument] = useState<string>("");
   const [documentPanelKind, setDocumentPanelKind] = useState<DocumentPanelKind>("prd");
   const [featureId, setFeatureId] = useState<string | null>(null);
   const [savingPrd, setSavingPrd] = useState(false);
@@ -318,6 +275,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [clarifyingIsPreInference, setClarifyingIsPreInference] = useState(false);
   const [featureCreateError, setFeatureCreateError] = useState<string | null>(null);
   const [preInferenceQuestionsError, setPreInferenceQuestionsError] = useState<string | null>(null);
+  const [modalWorkspaces, setModalWorkspaces] = useState<{ id: string; name: string }[]>([]);
+  const [modalWorkspacesLoading, setModalWorkspacesLoading] = useState(false);
 
   const clearPanelSearchParams = useCallback(() => {
     const p = new URLSearchParams(searchParams.toString());
@@ -367,6 +326,34 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   useEffect(() => {
     featureIdRef.current = featureId;
   }, [featureId]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    let cancelled = false;
+    setModalWorkspacesLoading(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/workspaces");
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setModalWorkspaces([]);
+          return;
+        }
+        const rows = Array.isArray(data)
+          ? data.map((w: { id: string; name: string }) => ({ id: w.id, name: w.name }))
+          : [];
+        setModalWorkspaces(rows);
+      } catch {
+        if (!cancelled) setModalWorkspaces([]);
+      } finally {
+        if (!cancelled) setModalWorkspacesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isModalOpen]);
 
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -641,7 +628,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setFeatureId(null);
     setPrdDocument("");
     setInferenceDocument("");
-    setCompetitorDocument("");
     setDocumentPanelKind("prd");
     setFeatureStatus(null);
     setPrdRecoveryPromptOpen(false);
@@ -665,6 +651,48 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setClarifyingOpen(true);
   }, []);
 
+  const fetchPreInferenceQuestions = useCallback(
+    async (
+      fid: string,
+      form: { name: string; purpose: string; requirements: string },
+    ): Promise<{ ok: true; questions: ClarifyingQuestion[] } | { ok: false; error: string }> => {
+      try {
+        const qres = await fetch("/api/agents/infer-questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            featureId: fid,
+            name: form.name,
+            purpose: form.purpose,
+            requirements: form.requirements,
+          }),
+        });
+        if (!qres.ok) {
+          const errText = await qres.text().catch(() => "");
+          return {
+            ok: false,
+            error: errText || qres.statusText || "Could not load clarifying questions.",
+          };
+        }
+        const j = (await qres.json()) as { questions?: ClarifyingQuestion[]; error?: string };
+        if (Array.isArray(j.questions) && j.questions.length > 0) {
+          return { ok: true, questions: j.questions };
+        }
+        return {
+          ok: false,
+          error: j.error || "The questions service returned no questions. Try again.",
+        };
+      } catch (e) {
+        console.error("infer-questions failed", e);
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : "Network error loading clarifying questions.",
+        };
+      }
+    },
+    [],
+  );
+
   const runInitialInference = useCallback(
     async (
       fid: string | null,
@@ -684,9 +712,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
       const agentMsgId = `${Date.now()}-agent`;
       setInferenceDocument("");
-      if (mode === "fresh") {
-        setCompetitorDocument("");
-      }
       setDocumentPanelKind("inference");
       setIsSplitView(true);
       addMessage({
@@ -826,21 +851,15 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           });
 
           let extractedInference = "";
-          let extractedCompetitor = "";
           const uiMsgs = rawUiMsgs.map((m) => {
             if (m.role === "agent" && m.agentType === "inference" && isLikelyFullInferenceBody(m.content)) {
               extractedInference = narrativeFromPersistedInference(m.content);
               return { ...m, content: INFERENCE_CHAT_STUB };
             }
-            if (m.role === "agent" && m.agentType === "competitor" && isLikelyFullCompetitorBody(m.content)) {
-              extractedCompetitor = m.content;
-              return { ...m, content: COMPETITOR_CHAT_STUB };
-            }
             return m;
           });
 
           setInferenceDocument(extractedInference);
-          setCompetitorDocument(extractedCompetitor);
 
           // Mark last non-system agent message as needs_review when appropriate
           const lastAgentIdx = [...uiMsgs]
@@ -851,7 +870,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             const lastAgent = uiMsgs[realIdx];
             const needsReview =
               (data.status === "draft" && lastAgent.agentType === "inference") ||
-              (data.status === "in_progress" && lastAgent.agentType === "competitor") ||
               (data.status === "review" && lastAgent.agentType === "prd");
             if (needsReview) {
               uiMsgs[realIdx] = { ...lastAgent, status: "needs_review" };
@@ -872,72 +890,96 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               setDocumentPanelKind("inference");
               setIsSplitView(true);
             }
-          } else if (data.status === "in_progress") {
-            const hasComp = uiMsgs.some(
-              (m) =>
-                m.role === "agent" && m.agentType === "competitor" && m.status === "needs_review",
-            );
-            if (hasComp) {
-              setDocumentPanelKind("competitor");
-              setIsSplitView(true);
-            }
           }
         } else {
-          // No persisted messages — show synthetic placeholder (backward compat)
-          const summary = `I want a new feature: ${data.name}\n\nPurpose: ${purpose}\nRequirements: ${requirements}`;
-          const userMsg: Message = {
-            id: `loaded-user-${data.id}`,
-            role: "user",
-            content: summary,
-          };
+          let ranBootstrap = false;
+          if (data.status === "draft" && typeof window !== "undefined") {
+            const raw = sessionStorage.getItem(NEW_FEATURE_BOOTSTRAP_KEY);
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw) as NewFeatureBootstrapPayload;
+                if (parsed.featureId === data.id && parsed.workspaceId === workspaceId) {
+                  sessionStorage.removeItem(NEW_FEATURE_BOOTSTRAP_KEY);
+                  ranBootstrap = true;
+                  setPreInferenceQuestionsError(null);
+                  setChatStarted(true);
+                  setIsModalOpen(false);
+                  const summary = `I want a new feature: ${data.name}\n\nPurpose: ${purpose}\nRequirements: ${requirements}`;
+                  setMessages([
+                    {
+                      id: `${Date.now()}-bootstrap-user`,
+                      role: "user",
+                      content: summary,
+                    },
+                  ]);
+                  await persistMessage(data.id, "user", summary);
+                  const qResult = await fetchPreInferenceQuestions(data.id, {
+                    name: data.name,
+                    purpose,
+                    requirements,
+                  });
+                  if (qResult.ok) {
+                    preInferenceClarifyPendingRef.current = true;
+                    setClarifyingIsPreInference(true);
+                    clarifyShownForRef.current.add(`pre-${data.id}`);
+                    setPendingClarifyingQuestions(qResult.questions);
+                    setClarifyingOpen(true);
+                  } else {
+                    setPreInferenceQuestionsError(qResult.error);
+                  }
+                }
+              } catch {
+                sessionStorage.removeItem(NEW_FEATURE_BOOTSTRAP_KEY);
+              }
+            }
+          }
 
-          if (data.status === "draft") {
-            setMessages([
-              userMsg,
-              {
-                id: `loaded-inf-${data.id}`,
-                role: "agent",
-                agentType: "inference",
-                content: "Loaded from workspace. Approve to continue, or send a message to refine.",
-                status: "needs_review",
-              },
-            ]);
-          } else if (data.status === "in_progress") {
-            setMessages([
-              userMsg,
-              {
-                id: `loaded-comp-${data.id}`,
-                role: "agent",
-                agentType: "competitor",
-                content: "Loaded from workspace. Approve to generate the PRD, or revise.",
-                status: "needs_review",
-              },
-            ]);
-          } else if (data.status === "generating") {
-            setMessages([
-              userMsg,
-              {
-                id: `loaded-gen-${data.id}`,
-                role: "agent",
-                agentType: "prd",
-                content:
-                  "PRD generation was interrupted or is still in progress. Use the recovery options in the PRD editor panel.",
-                status: "done",
-              },
-            ]);
-            setIsSplitView(true);
-          } else {
-            setMessages([
-              userMsg,
-              {
-                id: `loaded-prd-${data.id}`,
-                role: "agent",
-                agentType: "prd",
-                content: "PRD loaded. Edit in the panel or send revisions.",
-                status: "done",
-              },
-            ]);
-            if (prdText) setIsSplitView(true);
+          if (!ranBootstrap) {
+            // No persisted messages — show synthetic placeholder (backward compat)
+            const summary = `I want a new feature: ${data.name}\n\nPurpose: ${purpose}\nRequirements: ${requirements}`;
+            const userMsg: Message = {
+              id: `loaded-user-${data.id}`,
+              role: "user",
+              content: summary,
+            };
+
+            if (data.status === "draft") {
+              setMessages([
+                userMsg,
+                {
+                  id: `loaded-inf-${data.id}`,
+                  role: "agent",
+                  agentType: "inference",
+                  content: "Loaded from workspace. Approve to continue, or send a message to refine.",
+                  status: "needs_review",
+                },
+              ]);
+            } else if (data.status === "generating") {
+              setMessages([
+                userMsg,
+                {
+                  id: `loaded-gen-${data.id}`,
+                  role: "agent",
+                  agentType: "prd",
+                  content:
+                    "PRD generation was interrupted or is still in progress. Use the recovery options in the PRD editor panel.",
+                  status: "done",
+                },
+              ]);
+              setIsSplitView(true);
+            } else {
+              setMessages([
+                userMsg,
+                {
+                  id: `loaded-prd-${data.id}`,
+                  role: "agent",
+                  agentType: "prd",
+                  content: "PRD loaded. Edit in the panel or send revisions.",
+                  status: "done",
+                },
+              ]);
+              if (prdText) setIsSplitView(true);
+            }
           }
         }
 
@@ -952,49 +994,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     return () => {
       cancelled = true;
     };
-  }, [featureParam, workspaceId, router]);
-
-  const fetchPreInferenceQuestions = useCallback(
-    async (
-      fid: string,
-      form: { name: string; purpose: string; requirements: string },
-    ): Promise<{ ok: true; questions: ClarifyingQuestion[] } | { ok: false; error: string }> => {
-      try {
-        const qres = await fetch("/api/agents/infer-questions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            featureId: fid,
-            name: form.name,
-            purpose: form.purpose,
-            requirements: form.requirements,
-          }),
-        });
-        if (!qres.ok) {
-          const errText = await qres.text().catch(() => "");
-          return {
-            ok: false,
-            error: errText || qres.statusText || "Could not load clarifying questions.",
-          };
-        }
-        const j = (await qres.json()) as { questions?: ClarifyingQuestion[]; error?: string };
-        if (Array.isArray(j.questions) && j.questions.length > 0) {
-          return { ok: true, questions: j.questions };
-        }
-        return {
-          ok: false,
-          error: j.error || "The questions service returned no questions. Try again.",
-        };
-      } catch (e) {
-        console.error("infer-questions failed", e);
-        return {
-          ok: false,
-          error: e instanceof Error ? e.message : "Network error loading clarifying questions.",
-        };
-      }
-    },
-    [],
-  );
+  }, [featureParam, workspaceId, router, persistMessage, fetchPreInferenceQuestions]);
 
   const retryPreInferenceQuestions = useCallback(async () => {
     const fid = featureId;
@@ -1025,10 +1025,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     name: string;
     purpose: string;
     requirements: string;
+    workspace_id: string;
   }) => {
+    const targetWorkspaceId = data.workspace_id || workspaceId;
     setFeatureCreateError(null);
     setPreInferenceQuestionsError(null);
-    setFeatureData(data);
+    setFeatureData({
+      name: data.name,
+      purpose: data.purpose,
+      requirements: data.requirements,
+    });
     setIsLoading(true);
 
     let newId: string | null = null;
@@ -1040,7 +1046,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           name: data.name,
           purpose: data.purpose,
           requirements: data.requirements,
-          workspace_id: workspaceId,
+          workspace_id: targetWorkspaceId,
         }),
       });
       if (!res.ok) {
@@ -1069,7 +1075,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setIsModalOpen(false);
     setChatStarted(true);
     streamingRef.current = true;
-    router.replace(`/workspaces/${workspaceId}?feature=${createdFeatureId}`);
+    router.replace(`/workspaces/${targetWorkspaceId}?feature=${createdFeatureId}`);
 
     const userContent = `I want a new feature: ${data.name}\n\nPurpose: ${data.purpose}\nRequirements: ${data.requirements}`;
     addMessage({ id: Date.now().toString(), role: "user", content: userContent });
@@ -1753,7 +1759,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   };
 
   const handleViewAgentDocument = useCallback(
-    (kind: "inference" | "competitor") => {
+    (kind: "inference") => {
       setDocumentPanelKind(kind);
       clearPanelSearchParams();
       setIsSplitView(true);
@@ -1782,9 +1788,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
   const panelMarkdown = useMemo(() => {
     if (documentPanelKind === "prd") return prdDocument;
-    if (documentPanelKind === "inference") return inferenceDocument;
-    return competitorDocument;
-  }, [documentPanelKind, prdDocument, inferenceDocument, competitorDocument]);
+    return inferenceDocument;
+  }, [documentPanelKind, prdDocument, inferenceDocument]);
 
   const panelDerivedTitle = useMemo(
     () =>
@@ -1980,6 +1985,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             }}
             onSubmit={handleStartFeature}
             submitError={featureCreateError}
+            workspaces={modalWorkspaces}
+            workspacesLoading={modalWorkspacesLoading}
+            defaultWorkspaceId={workspaceId}
           />
         )}
       </div>
@@ -1996,6 +2004,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           }}
           onSubmit={handleStartFeature}
           submitError={featureCreateError}
+          workspaces={modalWorkspaces}
+          workspacesLoading={modalWorkspacesLoading}
+          defaultWorkspaceId={workspaceId}
         />
       )}
       <div className={`${styles.layout} ${isSplitView ? styles.splitActive : ""}`}>
@@ -2172,9 +2183,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 value={
                   documentPanelKind === "prd"
                     ? prdDocument
-                    : documentPanelKind === "inference"
-                      ? inferenceDocument
-                      : competitorDocument
+                    : inferenceDocument
                 }
                 onChange={
                   documentPanelKind === "prd"
