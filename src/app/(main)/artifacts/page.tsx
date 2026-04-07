@@ -35,8 +35,6 @@ function kindLabel(kind: string) {
       return 'PRD';
     case 'inference':
       return 'Inference';
-    case 'competitor':
-      return 'Competitors';
     default:
       return kind;
   }
@@ -107,7 +105,7 @@ export default function ArtifactsPage() {
         <div className={styles.emptyState}>
           {debouncedSearch.trim()
             ? 'No artifacts match your search.'
-            : 'No artifacts yet. Run inference, competitor analysis, or generate a PRD on a feature.'}
+            : 'No artifacts yet. Run inference or generate a PRD on a feature.'}
         </div>
       ) : !error ? (
         <div className={styles.tableContainer}>

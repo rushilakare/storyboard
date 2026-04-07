@@ -6,7 +6,7 @@ import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferen
 export interface Message {
   id: string;
   role: "user" | "agent";
-  agentType?: "inference" | "competitor" | "prd" | "system" | "discussion";
+  agentType?: "inference" | "prd" | "system" | "discussion";
   content: string;
   status?: "pending" | "done" | "needs_review";
   clarifyingQuestions?: ClarifyingQuestion[];
@@ -18,7 +18,7 @@ interface ChatProps {
   onApprove: (msgId: string, agentType: string) => void;
   isLoading?: boolean;
   onViewDocument?: () => void;
-  onViewAgentDocument?: (kind: "inference" | "competitor") => void;
+  onViewAgentDocument?: (kind: "inference") => void;
   clarifyingOpen?: boolean;
   clarifyingQuestions?: ClarifyingQuestion[];
   onClarifyComplete?: (answers: ClarificationAnswers) => void;
@@ -101,13 +101,11 @@ export default function ChatInterface({
                     ? "You"
                     : msg.agentType === "prd"
                       ? "Document Agent"
-                      : msg.agentType === "competitor"
-                        ? "Competitor Agent"
-                        : msg.agentType === "system"
-                          ? "System"
-                          : msg.agentType === "discussion"
-                            ? "Assistant"
-                            : "Product AI"}
+                      : msg.agentType === "system"
+                        ? "System"
+                        : msg.agentType === "discussion"
+                          ? "Assistant"
+                          : "Product AI"}
                 </span>
               </div>
               <div className={styles.messageText}>
@@ -116,20 +114,18 @@ export default function ChatInterface({
 
               {msg.status === "needs_review" &&
                 !isLoading &&
-                (msg.agentType === "inference" || msg.agentType === "competitor") && (
+                msg.agentType === "inference" && (
                   <div className={styles.actions}>
                     {onViewAgentDocument ? (
                       <button
                         type="button"
                         className={styles.reviseBtn}
-                        onClick={() => onViewAgentDocument(msg.agentType as "inference" | "competitor")}
+                        onClick={() => onViewAgentDocument("inference")}
                       >
-                        {msg.agentType === "inference"
-                          ? "View feature inference"
-                          : "View competitor analysis"}
+                        View feature inference
                       </button>
                     ) : null}
-                    {msg.agentType === "inference" && onUpdateInference ? (
+                    {onUpdateInference ? (
                       <button
                         type="button"
                         className={styles.updateInferenceBtn}
@@ -164,18 +160,6 @@ export default function ChatInterface({
                     onClick={() => onViewAgentDocument("inference")}
                   >
                     View feature inference
-                  </button>
-                </div>
-              )}
-
-              {msg.agentType === "competitor" && msg.status === "done" && onViewAgentDocument && (
-                <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.reviseBtn}
-                    onClick={() => onViewAgentDocument("competitor")}
-                  >
-                    View competitor analysis
                   </button>
                 </div>
               )}
