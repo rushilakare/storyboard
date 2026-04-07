@@ -4,7 +4,6 @@ import { computeEmbedding } from './embeddings';
 import type { KnowledgeBaseNotice } from './knowledge/httpHeaders';
 import { retrieveKnowledgeChunks } from './knowledge/retrieval';
 import {
-  COMPETITOR_OUTPUT_DISCIPLINE,
   INFERENCE_OUTPUT_DISCIPLINE,
   INFERENCE_REVISION_FROM_TRANSCRIPT,
   PRD_OUTPUT_REQUIREMENTS,
@@ -53,7 +52,7 @@ type DbMessage = {
   token_count: number | null;
 };
 
-function includeMessageForAgent(m: DbMessage, agentKind: 'inference' | 'competitor' | 'prd'): boolean {
+function includeMessageForAgent(m: DbMessage, agentKind: 'inference' | 'prd'): boolean {
   if (m.role === 'system') return false;
   if (m.role === 'user') return true;
   if (m.role !== 'assistant') return false;
@@ -64,10 +63,7 @@ function includeMessageForAgent(m: DbMessage, agentKind: 'inference' | 'competit
   if (agentKind === 'inference') {
     return t === 'inference' || t === null;
   }
-  if (agentKind === 'competitor') {
-    return t === 'inference' || t === 'competitor' || t === null;
-  }
-  return t === 'inference' || t === 'competitor' || t === null;
+  return t === 'inference' || t === null;
 }
 
 function applyCharBudget(messages: DbMessage[], maxChars: number): DbMessage[] {
@@ -100,22 +96,6 @@ function buildInferenceSystem(
   ].join('\n');
 }
 
-function buildCompetitorSystem(
-  featureBlock: string,
-  retrievedSection: string,
-): string {
-  return [
-    'You are an expert product management assistant simulating a Competitor Research Agent.',
-    'Simulate a quick industry / competitive scan (no live web access): infer how comparable products typically approach similar capabilities.',
-    COMPETITOR_OUTPUT_DISCIPLINE,
-    '',
-    TRANSCRIPT_DISCIPLINE,
-    '',
-    '### Feature Context',
-    featureBlock,
-    retrievedSection,
-  ].join('\n');
-}
 
 function buildPrdSystem(
   featureBlock: string,
@@ -144,7 +124,7 @@ function buildPrdSystem(
 export async function assembleFeatureContext(
   sb: AppSupabase,
   featureId: string,
-  agentKind: 'inference' | 'competitor' | 'prd',
+  agentKind: 'inference' | 'prd',
   options?: AssembleOptions,
 ): Promise<AssembledContext> {
   const maxMessages = options?.maxMessages ?? 24;
@@ -288,8 +268,6 @@ export async function assembleFeatureContext(
   let systemPrompt: string;
   if (agentKind === 'inference') {
     systemPrompt = buildInferenceSystem(featureBlock, retrievedSection);
-  } else if (agentKind === 'competitor') {
-    systemPrompt = buildCompetitorSystem(featureBlock, retrievedSection);
   } else {
     systemPrompt = buildPrdSystem(
       featureBlock,
