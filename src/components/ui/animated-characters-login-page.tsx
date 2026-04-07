@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 
 export type AnimatedCharactersLoginPageProps = {
-  mode: 'signin' | 'signup';
+  mode: 'signin' | 'signup' | 'forgot';
   onModeChange: (mode: 'signin' | 'signup') => void;
   email: string;
   onEmailChange: (value: string) => void;
@@ -26,6 +26,15 @@ export type AnimatedCharactersLoginPageProps = {
   resendSeconds: number;
   resendFeedback: { type: 'ok' | 'err'; text: string } | null;
   onGoogleLogin?: () => void;
+  // Forgot password
+  onForgotPassword: () => void;
+  forgotEmail: string;
+  onForgotEmailChange: (value: string) => void;
+  onForgotSubmit: (e: React.FormEvent) => void;
+  forgotLoading: boolean;
+  forgotError: string | null;
+  forgotSent: boolean;
+  onBackToSignIn: () => void;
 };
 
 interface PupilProps {
@@ -255,6 +264,14 @@ export default function AnimatedCharactersLoginPage({
   resendSeconds,
   resendFeedback,
   onGoogleLogin,
+  onForgotPassword,
+  forgotEmail,
+  onForgotEmailChange,
+  onForgotSubmit,
+  forgotLoading,
+  forgotError,
+  forgotSent,
+  onBackToSignIn,
 }: AnimatedCharactersLoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordFieldFocused, setPasswordFieldFocused] = useState(false);
@@ -833,7 +850,84 @@ export default function AnimatedCharactersLoginPage({
             />
           </div>
 
-          {showCheckEmail && pendingConfirmationEmail ? (
+          {mode === 'forgot' ? (
+            forgotSent ? (
+              <div className="space-y-6 text-center lg:text-left">
+                <h1 className="text-3xl font-bold tracking-tight">
+                  Check your email
+                </h1>
+                <div
+                  className="rounded-lg border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p>
+                    We sent a password reset link to{' '}
+                    <strong className="text-foreground">{forgotEmail}</strong>.
+                  </p>
+                  <p className="mt-2">Didn&apos;t get it? Check spam or promotions.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 w-full border-border/60 bg-background hover:bg-accent"
+                  onClick={onBackToSignIn}
+                >
+                  Back to sign in
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="text-center lg:text-left">
+                  <h1 className="text-3xl font-bold tracking-tight mb-2">
+                    Forgot password?
+                  </h1>
+                  <p className="text-muted-foreground text-sm">
+                    Enter your email and we&apos;ll send you a reset link.
+                  </p>
+                </div>
+                <form onSubmit={onForgotSubmit} className="space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email" className="text-sm font-medium">
+                      Email
+                    </Label>
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={forgotEmail}
+                      autoComplete="email"
+                      onChange={(e) => onForgotEmailChange(e.target.value)}
+                      required
+                      className="h-12 bg-background border-border/60 focus-visible:border-primary"
+                    />
+                  </div>
+                  {forgotError ? (
+                    <div className="p-3 text-sm text-red-400 bg-red-950/20 border border-red-900/30 rounded-lg">
+                      {forgotError}
+                    </div>
+                  ) : null}
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base font-medium"
+                    size="lg"
+                    disabled={forgotLoading}
+                  >
+                    {forgotLoading ? '…' : 'Send reset link'}
+                  </Button>
+                </form>
+                <div className="text-center text-sm text-muted-foreground">
+                  <button
+                    type="button"
+                    className="text-foreground font-medium hover:underline"
+                    onClick={onBackToSignIn}
+                  >
+                    Back to sign in
+                  </button>
+                </div>
+              </div>
+            )
+          ) : showCheckEmail && pendingConfirmationEmail ? (
             <div className="space-y-6 text-center lg:text-left">
               <h1 className="text-3xl font-bold tracking-tight">
                 Check your email
@@ -977,12 +1071,13 @@ export default function AnimatedCharactersLoginPage({
                       Remember for 30 days
                     </Label>
                   </div>
-                  <a
-                    href="#"
+                  <button
+                    type="button"
                     className="text-sm text-primary hover:underline font-medium shrink-0"
+                    onClick={onForgotPassword}
                   >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
 
                 {error ? (

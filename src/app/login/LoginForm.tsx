@@ -10,7 +10,7 @@ export default function LoginForm() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get('next') || '/workspaces';
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +25,11 @@ export default function LoginForm() {
   const [resendFeedback, setResendFeedback] = useState<
     { type: 'ok' | 'err'; text: string } | null
   >(null);
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -107,6 +112,39 @@ export default function LoginForm() {
     }
   }
 
+  function handleForgotPassword() {
+    setForgotEmail(email);
+    setForgotError(null);
+    setForgotSent(false);
+    setMode('forgot');
+  }
+
+  function handleBackToSignIn() {
+    setMode('signin');
+    setForgotError(null);
+    setForgotSent(false);
+  }
+
+  async function handleForgotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotError(null);
+    setForgotLoading(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const origin = window.location.origin;
+      const { error: err } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${origin}/auth/reset-callback`,
+      });
+      if (err) {
+        setForgotError(err.message);
+        return;
+      }
+      setForgotSent(true);
+    } finally {
+      setForgotLoading(false);
+    }
+  }
+
   async function handleGoogleLogin() {
     setError(null);
     const supabase = createBrowserSupabaseClient();
@@ -143,6 +181,14 @@ export default function LoginForm() {
       resendSeconds={resendSeconds}
       resendFeedback={resendFeedback}
       onGoogleLogin={handleGoogleLogin}
+      onForgotPassword={handleForgotPassword}
+      forgotEmail={forgotEmail}
+      onForgotEmailChange={setForgotEmail}
+      onForgotSubmit={handleForgotSubmit}
+      forgotLoading={forgotLoading}
+      forgotError={forgotError}
+      forgotSent={forgotSent}
+      onBackToSignIn={handleBackToSignIn}
     />
   );
 }

@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styles from './page.module.css';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
+import NewFeatureModal, { type NewFeatureFormValues } from '@/components/NewFeatureModal';
+import { NEW_FEATURE_BOOTSTRAP_KEY, type NewFeatureBootstrapPayload } from '@/lib/newFeatureBootstrap';
 
 interface Feature {
   id: string;
@@ -57,6 +60,7 @@ function priorityClass(priority: string) {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats>({
     workspaceCount: 0,
     featureCount: 0,
@@ -67,6 +71,10 @@ export default function Dashboard() {
   const debouncedFeatureSearch = useDebouncedValue(featureSearch, 250);
   const [tableFeatures, setTableFeatures] = useState<Feature[]>([]);
   const [tableLoading, setTableLoading] = useState(true);
+  const [newFeatureOpen, setNewFeatureOpen] = useState(false);
+  const [modalWorkspaces, setModalWorkspaces] = useState<{ id: string; name: string }[]>([]);
+  const [modalWorkspacesLoading, setModalWorkspacesLoading] = useState(false);
+  const [featureCreateError, setFeatureCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -95,6 +103,34 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    if (!newFeatureOpen) return;
+    let cancelled = false;
+    setModalWorkspacesLoading(true);
+    (async () => {
+      try {
+        const res = await fetch('/api/workspaces');
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          setModalWorkspaces([]);
+          return;
+        }
+        const rows = Array.isArray(data)
+          ? data.map((w: { id: string; name: string }) => ({ id: w.id, name: w.name }))
+          : [];
+        setModalWorkspaces(rows);
+      } catch {
+        if (!cancelled) setModalWorkspaces([]);
+      } finally {
+        if (!cancelled) setModalWorkspacesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [newFeatureOpen]);
+
+  useEffect(() => {
     async function loadTable() {
       setTableLoading(true);
       const q = debouncedFeatureSearch.trim();
@@ -119,14 +155,78 @@ export default function Dashboard() {
     loadTable();
   }, [debouncedFeatureSearch]);
 
+  const handleNewFeatureSubmit = useCallback(async (data: NewFeatureFormValues) => {
+    setFeatureCreateError(null);
+    try {
+      const res = await fetch('/api/features', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name,
+          purpose: data.purpose,
+          requirements: data.requirements,
+          workspace_id: data.workspace_id,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        setFeatureCreateError(errText || res.statusText || 'Could not create feature.');
+        return;
+      }
+      const saved = (await res.json()) as { id?: string };
+      if (!saved.id) {
+        setFeatureCreateError('Invalid response from server.');
+        return;
+      }
+      const payload: NewFeatureBootstrapPayload = {
+        workspaceId: data.workspace_id,
+        featureId: saved.id,
+        name: data.name,
+        purpose: data.purpose,
+        requirements: data.requirements,
+      };
+      sessionStorage.setItem(NEW_FEATURE_BOOTSTRAP_KEY, JSON.stringify(payload));
+      setNewFeatureOpen(false);
+      router.push(`/workspaces/${data.workspace_id}?feature=${saved.id}`);
+    } catch (e) {
+      setFeatureCreateError(e instanceof Error ? e.message : 'Could not create feature.');
+    }
+  }, [router]);
+
   return (
     <div className={styles.dashboard}>
       <header className={styles.header}>
         <h1 className={styles.title}>Overview</h1>
-        <Link href="/workspaces">
-          <button className={styles.primaryButton}>Go to Workspaces</button>
-        </Link>
+        <div className={styles.headerActions}>
+          <Link href="/workspaces" className={styles.headerSecondaryLink}>
+            Workspaces
+          </Link>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={() => {
+              setFeatureCreateError(null);
+              setNewFeatureOpen(true);
+            }}
+          >
+            New feature
+          </button>
+        </div>
       </header>
+
+      {newFeatureOpen ? (
+        <NewFeatureModal
+          onClose={() => {
+            setFeatureCreateError(null);
+            setNewFeatureOpen(false);
+          }}
+          onSubmit={(d) => void handleNewFeatureSubmit(d)}
+          submitError={featureCreateError}
+          workspaces={modalWorkspaces}
+          workspacesLoading={modalWorkspacesLoading}
+          defaultWorkspaceId={modalWorkspaces[0]?.id ?? null}
+        />
+      ) : null}
 
       <div className={styles.metricsContainer}>
         <div className={styles.metricCard}>

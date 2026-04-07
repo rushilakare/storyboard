@@ -12,6 +12,22 @@
   margin-bottom: 40px;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerSecondaryLink {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.headerSecondaryLink:hover {
+  color: var(--text-primary);
+}
+
 .title {
   font-size: 20px;
   font-weight: 600;
