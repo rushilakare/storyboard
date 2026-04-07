@@ -5,11 +5,9 @@ export type AppSupabase = SupabaseClient<Database>;
 
 export const ARTIFACT_KIND_PRD = 'prd' as const;
 export const ARTIFACT_KIND_INFERENCE = 'inference' as const;
-export const ARTIFACT_KIND_COMPETITOR = 'competitor' as const;
 
 const AGENT_ARTIFACT_KINDS = new Set<string>([
   ARTIFACT_KIND_INFERENCE,
-  ARTIFACT_KIND_COMPETITOR,
 ]);
 
 export function isAgentArtifactKind(kind: string): boolean {
@@ -18,12 +16,11 @@ export function isAgentArtifactKind(kind: string): boolean {
 
 function defaultTitleForAgentArtifactKind(kind: string): string {
   if (kind === ARTIFACT_KIND_INFERENCE) return 'Feature inference';
-  if (kind === ARTIFACT_KIND_COMPETITOR) return 'Competitor analysis';
   return kind;
 }
 
 /**
- * Append a completed inference/competitor artifact (version bumps per run).
+ * Append a completed inference artifact (version bumps per run).
  */
 export async function appendCompletedAgentArtifact(
   sb: AppSupabase,
@@ -281,11 +278,11 @@ export async function getLatestCompletedPrdRow(
   return data as FeatureArtifactRow;
 }
 
-/** Latest completed inference or competitor artifact (versioned). */
+/** Latest completed inference artifact (versioned). */
 export async function getLatestCompletedArtifactByKind(
   sb: AppSupabase,
   featureId: string,
-  kind: typeof ARTIFACT_KIND_INFERENCE | typeof ARTIFACT_KIND_COMPETITOR,
+  kind: typeof ARTIFACT_KIND_INFERENCE,
 ): Promise<FeatureArtifactRow | null> {
   const { data, error } = await sb
     .from('feature_artifacts')

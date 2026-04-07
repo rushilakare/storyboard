@@ -6,7 +6,6 @@ export type AiUsageSource =
   | 'infer'
   | 'infer_questions'
   | 'prd'
-  | 'competitor'
   | 'knowledge_ocr';
 
 /** Provider usage shape from AI SDK `generateText` / `streamText` `onFinish` (`totalUsage`). */

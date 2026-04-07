@@ -96,7 +96,6 @@ function buildInferenceSystem(
   ].join('\n');
 }
 
-
 function buildPrdSystem(
   featureBlock: string,
   retrievedSection: string,
