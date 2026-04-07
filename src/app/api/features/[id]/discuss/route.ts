@@ -1,7 +1,6 @@
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import {
-  ARTIFACT_KIND_COMPETITOR,
   ARTIFACT_KIND_INFERENCE,
   getLatestCompletedArtifactByKind,
 } from '@/lib/artifact-persistence';
@@ -74,10 +73,7 @@ export async function POST(
     return NextResponse.json({ error: 'Feature not found' }, { status: 404 });
   }
 
-  const [inferenceArtifact, competitorArtifact] = await Promise.all([
-    getLatestCompletedArtifactByKind(sb, featureId, ARTIFACT_KIND_INFERENCE),
-    getLatestCompletedArtifactByKind(sb, featureId, ARTIFACT_KIND_COMPETITOR),
-  ]);
+  const inferenceArtifact = await getLatestCompletedArtifactByKind(sb, featureId, ARTIFACT_KIND_INFERENCE);
 
   const { data: rawMsgs, error: me } = await sb
     .from('feature_messages')
@@ -111,23 +107,17 @@ export async function POST(
     inferenceArtifact?.body,
     DISCUSS_ARTIFACT_MAX_CHARS,
   );
-  const competitorBlock = formatArtifactBlock(
-    '### Latest competitor analysis (saved artifact)',
-    competitorArtifact?.body,
-    DISCUSS_ARTIFACT_MAX_CHARS,
-  );
-
   const system = `You are a senior product manager helping the user work through one feature: research, PRD work, and workshop chat.
 
 You are given (when available):
 - Feature metadata and structured clarifications from earlier Q&A.
-- The latest saved **feature inference** and **competitor analysis** artifacts (may be excerpts if very long).
-- A **recent transcript** of the feature thread (user, system, and assistant messages from inference, competitor, PRD, discussion, etc.), newest-heavy within a size limit.
+- The latest saved **feature inference** artifact (may be an excerpt if very long).
+- A **recent transcript** of the feature thread (user, system, and assistant messages from inference, PRD, discussion, etc.), newest-heavy within a size limit.
 
 Use this context to answer questions about what was generated, what the team decided, tradeoffs, risks, and next steps. If something is missing or was truncated, say so briefly.
 
 Rules:
-- Do NOT rewrite or regenerate the full inference document, competitor report, or entire PRD unless the user clearly asks you to.
+- Do NOT rewrite or regenerate the full inference document or entire PRD unless the user clearly asks you to.
 - Prefer concise, actionable answers (short paragraphs or bullets).
 - If you truly lack information, say what you would need to know.`;
 
@@ -136,8 +126,6 @@ Rules:
     featureBlock,
     '',
     inferenceBlock,
-    '',
-    competitorBlock,
     '',
     '### Recent feature thread (chronological excerpts, newest preserved first)',
     transcript,
