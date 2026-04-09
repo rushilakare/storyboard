@@ -108,7 +108,7 @@ export async function POST(request: Request) {
             const merged =
               continuationPrefix.length > 0 ? `${continuationPrefix}${text}` : text;
             if (merged.length > 0) {
-              const saved = await finalizeOpenPrdDraft(sb, featureId, merged);
+              const saved = await finalizeOpenPrdDraft(sb, featureId, merged, artifactTitle || null);
               if (saved.ok) {
                 await patchFeatureStatus(sb, featureId, 'done');
               } else {

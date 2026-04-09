@@ -242,6 +242,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     requirements: string;
   } | null>(null);
   const [prdDocument, setPrdDocument] = useState<string>("");
+  const debouncedPrdDocument = useDebouncedValue(prdDocument, 2000);
   const [inferenceDocument, setInferenceDocument] = useState<string>("");
   const [documentPanelKind, setDocumentPanelKind] = useState<DocumentPanelKind>("prd");
   const [featureId, setFeatureId] = useState<string | null>(null);
@@ -1877,6 +1878,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       setSavingPrd(false);
     }
   };
+
+  // Auto-save PRD edits after 2 s of inactivity
+  useEffect(() => {
+    if (!prdContentDirtyRef.current || !featureId || !debouncedPrdDocument || streamingRef.current) return;
+    void handleSavePrd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedPrdDocument, featureId]);
 
   const panelMarkdown = useMemo(() => {
     if (documentPanelKind === "prd") return prdDocument;
