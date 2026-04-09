@@ -193,6 +193,7 @@ export async function finalizeOpenPrdDraft(
   sb: AppSupabase,
   featureId: string,
   content: string,
+  title?: string | null,
 ): Promise<{ ok: true; row: FeatureArtifactRow } | { ok: false; error: string }> {
   const { data: open, error: openErr } = await sb
     .from('feature_artifacts')
@@ -206,9 +207,11 @@ export async function finalizeOpenPrdDraft(
   if (openErr) return { ok: false, error: openErr.message };
 
   if (open) {
+    const updatePayload: Record<string, unknown> = { body: content, is_draft: false };
+    if (title) updatePayload.title = title;
     const { data, error } = await sb
       .from('feature_artifacts')
-      .update({ body: content, is_draft: false })
+      .update(updatePayload)
       .eq('id', open.id)
       .select()
       .single();
@@ -228,7 +231,7 @@ export async function finalizeOpenPrdDraft(
       feature_id: featureId,
       kind: ARTIFACT_KIND_PRD,
       mime_type: 'text/markdown',
-      title: 'PRD',
+      title: title || 'PRD',
       body: content,
       version,
       is_draft: false,

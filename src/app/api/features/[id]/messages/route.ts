@@ -91,11 +91,13 @@ export async function POST(
     typeof agent_type === 'string' &&
     isAgentArtifactKind(agent_type)
   ) {
+    const metaObj = typeof metadata === 'object' && metadata !== null ? metadata as Record<string, unknown> : {};
+    const artifactTitle = typeof metaObj.artifact_title === 'string' ? metaObj.artifact_title : undefined;
     const artifactResult = await appendCompletedAgentArtifact(
       auth.supabase,
       featureId,
       agent_type,
-      { body: content, sourceMessageId: data.id },
+      { body: content, sourceMessageId: data.id, title: artifactTitle || null },
     );
     if (!artifactResult.ok) {
       console.error(

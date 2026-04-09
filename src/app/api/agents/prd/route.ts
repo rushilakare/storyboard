@@ -1,4 +1,4 @@
-import { streamText } from 'ai';
+import { streamText, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import {
   PRD_OUTPUT_REQUIREMENTS,
@@ -10,11 +10,25 @@ import { requireUser } from '@/lib/auth/require-user';
 import { assembleFeatureContext } from '@/lib/context';
 import { knowledgeBaseHeaders } from '@/lib/knowledge/httpHeaders';
 import { patchFeatureStatus } from '@/lib/prd-persistence';
-import { MODEL_GPT_5_4, recordAiUsage } from '@/lib/ai/recordUsage';
+import { MODEL_GPT_5_4, MODEL_GPT_4O_MINI, recordAiUsage } from '@/lib/ai/recordUsage';
 
 export const maxDuration = 60;
 
 const PRD_MODEL = openai(MODEL_GPT_5_4);
+const TITLE_MODEL = openai(MODEL_GPT_4O_MINI);
+
+async function generatePrdTitle(name: string, purpose: string): Promise<string> {
+  try {
+    const { text } = await generateText({
+      model: TITLE_MODEL,
+      prompt: `Generate a concise 4-8 word title for a PRD artifact. Feature name: "${name}". Purpose: "${purpose}". Return only the title, no punctuation at the end, no quotes.`,
+      maxOutputTokens: 30,
+    });
+    return text.trim();
+  } catch {
+    return '';
+  }
+}
 
 const CONTINUATION_INSTRUCTION = `
 ### Interrupted draft (continue mode)
@@ -49,12 +63,23 @@ export async function POST(request: Request) {
       typeof continueDraft === 'string' && continueDraft.length > 0 ? continueDraft : '';
 
     if (featureId) {
-      const context = await assembleFeatureContext(sb, featureId, 'prd', {
-        userQuery: revision || undefined,
-        enableRetrieval: !!revision,
-        omitSavedPrdDocument: continuationPrefix.length > 0,
-        userId: auth.userId,
-      });
+      const featureRes = await sb
+        .from('features')
+        .select('name, purpose')
+        .eq('id', featureId)
+        .single();
+      const featureName = featureRes.data?.name ?? '';
+      const featurePurpose = featureRes.data?.purpose ?? '';
+
+      const [context, artifactTitle] = await Promise.all([
+        assembleFeatureContext(sb, featureId, 'prd', {
+          userQuery: revision || undefined,
+          enableRetrieval: !!revision,
+          omitSavedPrdDocument: continuationPrefix.length > 0,
+          userId: auth.userId,
+        }),
+        generatePrdTitle(featureName, featurePurpose),
+      ]);
 
       let systemPrompt = context.systemPrompt;
       if (continuationPrefix) {
@@ -99,16 +124,20 @@ export async function POST(request: Request) {
       return new Response(textStream, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
+          ...(artifactTitle ? { 'X-Artifact-Title': artifactTitle } : {}),
           ...knowledgeBaseHeaders(context.knowledgeBase),
         },
       });
     }
 
+    const featureName = name || 'N/A';
+    const featurePurpose = purpose || 'Not specified';
+
     let prompt = `${PRD_ROLE_INTRO} I need you to write a comprehensive PRD/Epic and then break it down into detailed user stories in Markdown format.
 
 ### The Requirement
-Feature Name: ${name || 'N/A'}
-Core Problem to Solve: ${purpose || 'Not specified'}
+Feature Name: ${featureName}
+Core Problem to Solve: ${featurePurpose}
 Key Capabilities/Requirements: ${requirements || 'None'}
 
 ${revision ? `### Additional Context/Revision\nThe user provided this update/feedback: "${revision}"` : ''}
@@ -127,22 +156,28 @@ ${PRD_OUTPUT_REQUIREMENTS}`;
       ].join('\n');
     }
 
-    const { textStream } = streamText({
-      model: PRD_MODEL,
-      prompt,
-      onFinish: async ({ totalUsage }) => {
-        await recordAiUsage(sb, {
-          userId: auth.userId,
-          featureId: null,
-          source: 'prd',
-          modelId: MODEL_GPT_5_4,
-          usage: totalUsage,
-        });
-      },
-    });
+    const [{ textStream }, artifactTitle] = await Promise.all([
+      Promise.resolve(streamText({
+        model: PRD_MODEL,
+        prompt,
+        onFinish: async ({ totalUsage }) => {
+          await recordAiUsage(sb, {
+            userId: auth.userId,
+            featureId: null,
+            source: 'prd',
+            modelId: MODEL_GPT_5_4,
+            usage: totalUsage,
+          });
+        },
+      })),
+      generatePrdTitle(featureName, featurePurpose),
+    ]);
 
     return new Response(textStream, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        ...(artifactTitle ? { 'X-Artifact-Title': artifactTitle } : {}),
+      },
     });
   } catch {
     return new Response(

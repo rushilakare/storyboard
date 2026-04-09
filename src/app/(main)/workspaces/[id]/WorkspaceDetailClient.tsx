@@ -30,10 +30,6 @@ import {
   splitInferenceDisplayBuffer,
 } from "@/lib/postInferenceQuestions";
 import {
-  formatKnowledgeBaseChatNote,
-  parseKnowledgeBaseFromHeaders,
-} from "@/lib/knowledge/chatNotice";
-import {
   NEW_FEATURE_BOOTSTRAP_KEY,
   type NewFeatureBootstrapPayload,
 } from "@/lib/newFeatureBootstrap";
@@ -42,19 +38,6 @@ import {
 const INFERENCE_CHAT_STUB =
   "Feature inference is ready. Use “View feature inference” to read it in the document panel, then approve to continue.";
 
-function appendKnowledgeBaseChatLine(addMessage: (msg: Message) => void, res: Response) {
-  if (!res.ok) return;
-  const meta = parseKnowledgeBaseFromHeaders(res.headers);
-  const note = meta ? formatKnowledgeBaseChatNote(meta) : null;
-  if (!note) return;
-  addMessage({
-    id: `${Date.now()}-kb-${Math.random().toString(36).slice(2, 9)}`,
-    role: "agent",
-    agentType: "system",
-    content: note,
-    status: "done",
-  });
-}
 
 type DocumentPanelKind = "inference" | "prd";
 
@@ -89,15 +72,18 @@ async function consumeInferenceStream(
   setMessages: Dispatch<SetStateAction<Message[]>>,
   setInferenceDoc: Dispatch<SetStateAction<string>>,
   options?: ConsumeInferenceStreamOptions,
-): Promise<{ narrative: string; questions: ClarifyingQuestion[] }> {
+  signal?: AbortSignal,
+): Promise<{ narrative: string; questions: ClarifyingQuestion[]; interrupted: boolean }> {
   const bufferDocumentUntilDone = options?.bufferDocumentUntilDone ?? false;
   const dropParsedQuestions = options?.dropParsedQuestions ?? false;
   const decoder = new TextDecoder();
   let agentContent = "";
+  let interrupted = false;
   while (true) {
-    const { done, value } = await reader.read();
+    if (signal?.aborted) { interrupted = true; reader.cancel().catch(() => {}); break; }
+    const { done, value } = await reader.read().catch(() => ({ done: true, value: undefined }));
     if (done) break;
-    agentContent += decoder.decode(value, { stream: true });
+    if (value) agentContent += decoder.decode(value, { stream: true });
     if (!bufferDocumentUntilDone) {
       const { display } = splitInferenceDisplayBuffer(agentContent);
       setInferenceDoc(display);
@@ -111,19 +97,22 @@ async function consumeInferenceStream(
   const { narrative, questions: parsedQs } = parseInferenceStreamComplete(agentContent);
   const questions = dropParsedQuestions ? [] : parsedQs;
   setInferenceDoc(narrative);
+  const finalContent = interrupted
+    ? `${INFERENCE_CHAT_STUB}\n\n_Response interrupted._`
+    : INFERENCE_CHAT_STUB;
   setMessages((prev) =>
     prev.map((m) =>
       m.id === agentMsgId
         ? {
             ...m,
-            content: INFERENCE_CHAT_STUB,
+            content: finalContent,
             ...(questions.length > 0 ? { clarifyingQuestions: questions } : {}),
             status: "needs_review" as const,
           }
         : m,
     ),
   );
-  return { narrative, questions };
+  return { narrative, questions, interrupted };
 }
 
 
@@ -312,6 +301,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const prdContentDirtyRef = useRef(false);
   const featureIdRef = useRef<string | null>(null);
   const prdStreamingBufferRef = useRef<string>("");
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const skipNextClassifyRef = useRef(false);
+
+  const [pendingCommand, setPendingCommand] = useState<{
+    intent: "regenerate_inference" | "generate_prd" | "regenerate_prd";
+    message: string;
+  } | null>(null);
   // Tracks which inference message IDs already triggered the clarifying modal
   const clarifyShownForRef = useRef<Set<string>>(new Set());
   const preInferenceClarifyPendingRef = useRef(false);
@@ -418,11 +414,11 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   }, [featureStatus]);
 
   const finalizePrdAndPersistAssistant = useCallback(
-    async (fid: string, fullMarkdown: string) => {
+    async (fid: string, fullMarkdown: string, artifactTitle?: string | null) => {
       const putRes = await fetch(`/api/features/${fid}/prd`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: fullMarkdown, finalize: true }),
+        body: JSON.stringify({ content: fullMarkdown, finalize: true, ...(artifactTitle ? { title: artifactTitle } : {}) }),
       });
       let artifactId: string | undefined;
       let version: number | undefined;
@@ -469,7 +465,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       fid: string | null,
       partialPrefix: string,
       setDoc: (s: string) => void,
-    ): Promise<string> => {
+      signal?: AbortSignal,
+    ): Promise<{ content: string; interrupted: boolean }> => {
       if (!res.ok) {
         const err = await res.text();
         throw new Error(err || res.statusText || "Request failed");
@@ -483,11 +480,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       const decoder = new TextDecoder();
       let lastSaveAt = Date.now();
       let lastSaveLen = 0;
+      let interrupted = false;
 
       while (true) {
-        const { done, value } = await reader.read();
+        if (signal?.aborted) { interrupted = true; reader.cancel().catch(() => {}); break; }
+        const { done, value } = await reader.read().catch(() => ({ done: true, value: undefined }));
         if (done) break;
-        continuation += decoder.decode(value, { stream: true });
+        if (value) continuation += decoder.decode(value, { stream: true });
         const full = partialPrefix + continuation;
         prdStreamingBufferRef.current = full;
         setDoc(full);
@@ -509,7 +508,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         }
       }
 
-      return partialPrefix + continuation;
+      return { content: partialPrefix + continuation, interrupted };
     },
     [],
   );
@@ -719,15 +718,19 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         status: "pending",
       });
 
+      const abortCtrl = new AbortController();
+      abortControllerRef.current = abortCtrl;
       streamingRef.current = true;
       setIsLoading(true);
       let narrativeForPersistence = "";
       let parsedQuestions: ClarifyingQuestion[] = [];
+      let inferenceArtifactTitle: string | undefined;
       try {
         const res = await fetch("/api/agents/infer", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ featureId: fid, ...form }),
+          signal: abortCtrl.signal,
         });
 
         if (!res.ok) {
@@ -741,7 +744,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             ),
           );
         } else {
-          appendKnowledgeBaseChatLine(addMessage, res);
+          inferenceArtifactTitle = res.headers.get("X-Artifact-Title") ?? undefined;
           if (res.body) {
             const reader = res.body.getReader();
             const streamOpts: ConsumeInferenceStreamOptions | undefined = fid
@@ -753,6 +756,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               setMessages,
               setInferenceDocument,
               streamOpts,
+              abortCtrl.signal,
             );
             narrativeForPersistence = narrative;
             parsedQuestions = questions;
@@ -765,18 +769,18 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           }
         }
       } catch (e) {
-        console.error(e);
+        if ((e as Error)?.name !== "AbortError") console.error(e);
       } finally {
         streamingRef.current = false;
         setIsLoading(false);
+        abortControllerRef.current = null;
       }
 
       if (fid && narrativeForPersistence) {
-        const meta =
-          !fid && parsedQuestions.length > 0
-            ? { clarifying_questions: parsedQuestions }
-            : undefined;
-        await persistMessage(fid, "assistant", narrativeForPersistence, "inference", meta);
+        const meta: Record<string, unknown> = {};
+        if (!fid && parsedQuestions.length > 0) meta.clarifying_questions = parsedQuestions;
+        if (inferenceArtifactTitle) meta.artifact_title = inferenceArtifactTitle;
+        await persistMessage(fid, "assistant", narrativeForPersistence, "inference", Object.keys(meta).length > 0 ? meta : undefined);
       }
     },
     [persistMessage, openClarifyingModal],
@@ -837,6 +841,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             if (Array.isArray(rawQ) && rawQ.length > 0) {
               clarifyingQuestions = rawQ as ClarifyingQuestion[];
             }
+            const attachments = Array.isArray(meta?.attachments)
+              ? (meta.attachments as { id: string; filename: string; mime_type: string; status?: "ready" | "failed" }[])
+              : undefined;
             return {
               id: m.id as string,
               role: (m.role === "user" ? "user" : "agent") as "user" | "agent",
@@ -844,6 +851,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               content: m.content as string,
               status: "done" as const,
               clarifyingQuestions,
+              attachments,
             };
           });
 
@@ -1023,6 +1031,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     purpose: string;
     requirements: string;
     workspace_id: string;
+    files?: File[];
   }) => {
     const targetWorkspaceId = data.workspace_id || workspaceId;
     setFeatureCreateError(null);
@@ -1069,6 +1078,34 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
     const createdFeatureId = newId;
 
+    // Upload attachments before navigating (so they're ready for the first agent call)
+    if (data.files && data.files.length > 0) {
+      for (let i = 0; i < data.files.length; i++) {
+        const f = data.files[i];
+        setFeatureCreateError(`Uploading ${f.name} (${i + 1} of ${data.files.length})…`);
+        try {
+          const form = new FormData();
+          form.append("file", f);
+          const attRes = await fetch(`/api/features/${createdFeatureId}/attachments`, {
+            method: "POST",
+            body: form,
+          });
+          if (!attRes.ok) {
+            const errText = await attRes.text().catch(() => "");
+            setFeatureCreateError(errText || `Failed to upload ${f.name}`);
+            setIsLoading(false);
+            return;
+          }
+          // status:'failed' is non-blocking — extraction error on the server side
+        } catch (e) {
+          setFeatureCreateError(e instanceof Error ? e.message : `Failed to upload ${f.name}`);
+          setIsLoading(false);
+          return;
+        }
+      }
+      setFeatureCreateError(null);
+    }
+
     setIsModalOpen(false);
     setChatStarted(true);
     streamingRef.current = true;
@@ -1095,13 +1132,38 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   };
 
   // ── User Revision ─────────────────────────────────────────────────
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, files?: File[]) => {
     const lastAgentMsg = [...messagesRef.current]
       .reverse()
       .find((m) => m.role === "agent" && m.agentType !== "system");
 
     if (lastAgentMsg?.agentType === "prd" && lastAgentMsg.status === "pending") {
       return;
+    }
+
+    const doClassify = !skipNextClassifyRef.current;
+    skipNextClassifyRef.current = false;
+
+    // LLM intent classification (only when we have a feature context, skip when explicitly bypassed)
+    if (featureId && doClassify) {
+      const hasInference = messagesRef.current.some((m) => m.role === "agent" && m.agentType === "inference");
+      const hasPrd = messagesRef.current.some((m) => m.role === "agent" && m.agentType === "prd");
+      try {
+        const classifyRes = await fetch(`/api/features/${featureId}/classify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, featureState: { hasInference, hasPrd } }),
+        });
+        if (classifyRes.ok) {
+          const { intent } = await classifyRes.json() as { intent: string };
+          if (intent === "regenerate_inference" || intent === "generate_prd" || intent === "regenerate_prd") {
+            setPendingCommand({ intent: intent as "regenerate_inference" | "generate_prd" | "regenerate_prd", message: text });
+            return;
+          }
+        }
+      } catch {
+        // classification failed — treat as discussion
+      }
     }
 
     const isPrdRevision =
@@ -1127,11 +1189,50 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       );
     }
 
-    addMessage({ id: Date.now().toString(), role: "user", content: text });
-
+    // Upload attachments before posting the message
+    const uploadedAttachments: { id: string; filename: string; mime_type: string; status: "ready" | "failed" }[] = [];
     const fid = featureId;
+    if (files && files.length > 0 && fid) {
+      setIsLoading(true);
+      for (const f of files) {
+        try {
+          const form = new FormData();
+          form.append("file", f);
+          const attRes = await fetch(`/api/features/${fid}/attachments`, {
+            method: "POST",
+            body: form,
+          });
+          if (!attRes.ok) {
+            // HTTP error — abort the send
+            setIsLoading(false);
+            return;
+          }
+          const att = await attRes.json() as { id: string; filename: string; mime_type: string; status: string };
+          uploadedAttachments.push({
+            id: att.id,
+            filename: att.filename,
+            mime_type: att.mime_type,
+            status: att.status === "failed" ? "failed" : "ready",
+          });
+        } catch {
+          setIsLoading(false);
+          return;
+        }
+      }
+    }
+
+    addMessage({
+      id: Date.now().toString(),
+      role: "user",
+      content: text,
+      attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+    });
+
     if (fid) {
-      await persistMessage(fid, "user", text);
+      const meta = uploadedAttachments.length > 0
+        ? { attachments: uploadedAttachments }
+        : undefined;
+      await persistMessage(fid, "user", text, null, meta ?? null);
     }
 
     if (isPrdRevision) {
@@ -1161,16 +1262,22 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       });
     }
 
+    const abortCtrl = new AbortController();
+    abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
     setIsLoading(true);
     let agentContent = "";
     let prdFetchSucceeded = false;
     let prdStreamError = false;
+    let prdInterrupted = false;
+    let sendArtifactTitle: string | undefined;
 
     try {
       const res = await fetch(endpoint, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ featureId: fid, ...featureData, revision: text }),
+        signal: abortCtrl.signal,
       });
 
       if (!res.ok) {
@@ -1182,20 +1289,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           setMessages((prev) =>
             prev.map((m) =>
               m.id === agentMsgId
-                ? {
-                    ...m,
-                    content: `Error: ${err || res.statusText}`,
-                    status: "needs_review" as const,
-                  }
+                ? { ...m, content: `Error: ${err || res.statusText}`, status: "needs_review" as const }
                 : m,
             ),
           );
           if (fid) {
-            await fetch(`/api/features/${fid}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "review" }),
-            });
+            await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "review" }) });
             setFeatureStatus("review");
           }
         } else {
@@ -1209,10 +1308,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         }
       } else if (isPrdRevision) {
         prdFetchSucceeded = true;
-        appendKnowledgeBaseChatLine(addMessage, res);
-        agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
+        sendArtifactTitle = res.headers.get("X-Artifact-Title") ?? undefined;
+        const { content, interrupted } = await consumePrdStream(res, fid, "", setPrdDocument, abortCtrl.signal);
+        agentContent = content;
+        prdInterrupted = interrupted;
       } else {
-        if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
+        sendArtifactTitle = res.headers.get("X-Artifact-Title") ?? undefined;
         if (res.body) {
           const reader = res.body.getReader();
           if (agentType === "inference") {
@@ -1225,6 +1326,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               setMessages,
               setInferenceDocument,
               streamOpts,
+              abortCtrl.signal,
             );
             agentContent = narrative;
             if (!fid && questions.length > 0) {
@@ -1237,40 +1339,47 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         }
       }
     } catch (e) {
-      console.error(e);
-      if (isPrdRevision) {
-        prdStreamError = true;
-        const msg = e instanceof Error ? e.message : "Stream failed";
-        setStreamError(msg);
-        setPrdRecoveryPromptOpen(true);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === agentMsgId
-              ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const }
-              : m,
-          ),
-        );
-        if (fid) {
-          await fetch(`/api/features/${fid}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "review" }),
-          });
-          setFeatureStatus("review");
+      if ((e as Error)?.name !== "AbortError") {
+        console.error(e);
+        if (isPrdRevision) {
+          prdStreamError = true;
+          const msg = e instanceof Error ? e.message : "Stream failed";
+          setStreamError(msg);
+          setPrdRecoveryPromptOpen(true);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === agentMsgId
+                ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const }
+                : m,
+            ),
+          );
+          if (fid) {
+            await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "review" }) });
+            setFeatureStatus("review");
+          }
         }
       }
     }
 
-    if (isPrdRevision && fid && agentContent) {
+    if (isPrdRevision && prdInterrupted) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === agentMsgId
+            ? { ...m, content: "PRD generation was interrupted. Your partial draft has been saved.", status: "needs_review" as const }
+            : m,
+        ),
+      );
+      setPrdRecoveryPromptOpen(true);
+      if (fid) {
+        await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "review" }) });
+        setFeatureStatus("review");
+      }
+    } else if (isPrdRevision && fid && agentContent) {
       try {
-        const line = await finalizePrdAndPersistAssistant(fid, agentContent);
+        const line = await finalizePrdAndPersistAssistant(fid, agentContent, sendArtifactTitle);
         prdContentDirtyRef.current = false;
         setSavedPrd(true);
-        await fetch(`/api/features/${fid}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "done" }),
-        });
+        await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "done" }) });
         setFeatureStatus("done");
         setPrdRecoveryPromptOpen(false);
         setMessages((prev) =>
@@ -1281,30 +1390,18 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       } catch (pe) {
         console.error("Failed to save PRD after revision", pe);
       }
-    } else if (
-      isPrdRevision &&
-      fid &&
-      prdFetchSucceeded &&
-      !agentContent &&
-      !prdStreamError
-    ) {
+    } else if (isPrdRevision && fid && prdFetchSucceeded && !agentContent && !prdStreamError) {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === agentMsgId
-            ? {
-                ...m,
-                content: "PRD revision produced no content.",
-                status: "needs_review" as const,
-              }
+            ? { ...m, content: "PRD revision produced no content.", status: "needs_review" as const }
             : m,
         ),
       );
     } else if (fid && agentContent && !isPrdRevision) {
-      if (agentType === "inference") {
-        await persistMessage(fid, "assistant", agentContent, agentType);
-      } else {
-        await persistMessage(fid, "assistant", agentContent, agentType);
-      }
+      const meta: Record<string, unknown> = {};
+      if (sendArtifactTitle) meta.artifact_title = sendArtifactTitle;
+      await persistMessage(fid, "assistant", agentContent, agentType, Object.keys(meta).length > 0 ? meta : undefined);
     }
 
     if (isPrdRevision) {
@@ -1312,6 +1409,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     }
     setIsLoading(false);
     streamingRef.current = false;
+    abortControllerRef.current = null;
   };
 
   // ── Approve + Next Stage ──────────────────────────────────────────
@@ -1357,6 +1455,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           status: "pending",
         });
 
+        const abortCtrl = new AbortController();
+        abortControllerRef.current = abortCtrl;
         streamingRef.current = true;
         prdStreamingBufferRef.current = "";
         setStreamError(null);
@@ -1366,6 +1466,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ featureId: fid, ...featureData }),
+            signal: abortCtrl.signal,
           });
 
           if (!res.ok) {
@@ -1388,10 +1489,23 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               setFeatureStatus("review");
             }
           } else {
-            appendKnowledgeBaseChatLine(addMessage, res);
-            const agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
-            if (fid && agentContent) {
-              const line = await finalizePrdAndPersistAssistant(fid, agentContent);
+            const prdArtifactTitle = res.headers.get("X-Artifact-Title") ?? undefined;
+              const { content: agentContent, interrupted } = await consumePrdStream(res, fid, "", setPrdDocument, abortCtrl.signal);
+            if (interrupted) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === prdMsgId
+                    ? { ...m, content: "PRD generation was interrupted. Your partial draft has been saved.", status: "needs_review" as const }
+                    : m,
+                ),
+              );
+              setPrdRecoveryPromptOpen(true);
+              if (fid) {
+                await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "review" }) });
+                setFeatureStatus("review");
+              }
+            } else if (fid && agentContent) {
+              const line = await finalizePrdAndPersistAssistant(fid, agentContent, prdArtifactTitle);
               await fetch(`/api/features/${fid}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
@@ -1421,28 +1535,31 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             }
           }
         } catch (e) {
-          console.error("PRD stream error", e);
-          const msg = e instanceof Error ? e.message : "Stream failed";
-          setStreamError(msg);
-          setPrdRecoveryPromptOpen(true);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === prdMsgId
-                ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const }
-                : m,
-            ),
-          );
-          if (fid) {
-            await fetch(`/api/features/${fid}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "review" }),
-            });
-            setFeatureStatus("review");
+          if ((e as Error)?.name !== "AbortError") {
+            console.error("PRD stream error", e);
+            const msg = e instanceof Error ? e.message : "Stream failed";
+            setStreamError(msg);
+            setPrdRecoveryPromptOpen(true);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === prdMsgId
+                  ? { ...m, content: `Error: ${msg}`, status: "needs_review" as const }
+                  : m,
+              ),
+            );
+            if (fid) {
+              await fetch(`/api/features/${fid}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "review" }),
+              });
+              setFeatureStatus("review");
+            }
           }
         } finally {
           streamingRef.current = false;
           prdStreamingBufferRef.current = "";
+          abortControllerRef.current = null;
         }
       }
     } catch (e) {
@@ -1457,6 +1574,8 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setStreamError(null);
     setPrdRecoveryPromptOpen(false);
     const partial = prdDocument;
+    const abortCtrl = new AbortController();
+    abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
     setIsLoading(true);
     prdStreamingBufferRef.current = partial;
@@ -1465,34 +1584,30 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       const res = await fetch("/api/agents/prd", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          featureId: fid,
-          ...featureData,
-          continue: partial,
-        }),
+        body: JSON.stringify({ featureId: fid, ...featureData, continue: partial }),
+        signal: abortCtrl.signal,
       });
-      if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
-      const agentContent = await consumePrdStream(res, fid, partial, setPrdDocument);
+      const prdArtifactTitle = res.ok ? (res.headers.get("X-Artifact-Title") ?? undefined) : undefined;
+      const { content: agentContent } = await consumePrdStream(res, fid, partial, setPrdDocument, abortCtrl.signal);
       if (fid && agentContent) {
-        await finalizePrdAndPersistAssistant(fid, agentContent);
-        await fetch(`/api/features/${fid}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "done" }),
-        });
+        await finalizePrdAndPersistAssistant(fid, agentContent, prdArtifactTitle);
+        await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "done" }) });
         setFeatureStatus("done");
         prdContentDirtyRef.current = false;
         setSavedPrd(true);
         setPrdRecoveryPromptOpen(false);
       }
     } catch (e) {
-      console.error(e);
-      setStreamError(e instanceof Error ? e.message : "PRD stream failed");
-      setPrdRecoveryPromptOpen(true);
+      if ((e as Error)?.name !== "AbortError") {
+        console.error(e);
+        setStreamError(e instanceof Error ? e.message : "PRD stream failed");
+        setPrdRecoveryPromptOpen(true);
+      }
     } finally {
       setIsLoading(false);
       streamingRef.current = false;
       prdStreamingBufferRef.current = "";
+      abortControllerRef.current = null;
     }
   };
 
@@ -1503,14 +1618,12 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setPrdRecoveryPromptOpen(false);
     setPrdDocument("");
     prdStreamingBufferRef.current = "";
+    const abortCtrl = new AbortController();
+    abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
     setIsLoading(true);
     try {
-      await fetch(`/api/features/${fid}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "generating" }),
-      });
+      await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "generating" }) });
       setFeatureStatus("generating");
       await postBeginPrdDraft(fid);
 
@@ -1518,29 +1631,29 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ featureId: fid, ...featureData }),
+        signal: abortCtrl.signal,
       });
-      if (res.ok) appendKnowledgeBaseChatLine(addMessage, res);
-      const agentContent = await consumePrdStream(res, fid, "", setPrdDocument);
+      const prdArtifactTitle = res.ok ? (res.headers.get("X-Artifact-Title") ?? undefined) : undefined;
+      const { content: agentContent } = await consumePrdStream(res, fid, "", setPrdDocument, abortCtrl.signal);
       if (fid && agentContent) {
-        await finalizePrdAndPersistAssistant(fid, agentContent);
-        await fetch(`/api/features/${fid}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "done" }),
-        });
+        await finalizePrdAndPersistAssistant(fid, agentContent, prdArtifactTitle);
+        await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "done" }) });
         setFeatureStatus("done");
         prdContentDirtyRef.current = false;
         setSavedPrd(true);
         setPrdRecoveryPromptOpen(false);
       }
     } catch (e) {
-      console.error(e);
-      setStreamError(e instanceof Error ? e.message : "PRD stream failed");
-      setPrdRecoveryPromptOpen(true);
+      if ((e as Error)?.name !== "AbortError") {
+        console.error(e);
+        setStreamError(e instanceof Error ? e.message : "PRD stream failed");
+        setPrdRecoveryPromptOpen(true);
+      }
     } finally {
       setIsLoading(false);
       streamingRef.current = false;
       prdStreamingBufferRef.current = "";
+      abortControllerRef.current = null;
     }
   };
 
@@ -1659,6 +1772,52 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     setInferenceReviseHint(true);
     setFocusComposerToken((t) => t + 1);
   }, []);
+
+  const handleStop = useCallback(() => {
+    abortControllerRef.current?.abort();
+  }, []);
+
+  const handleCommandConfirm = useCallback(async () => {
+    if (!pendingCommand) return;
+    const { intent, message } = pendingCommand;
+    setPendingCommand(null);
+
+    // Show acknowledgment bubble
+    addMessage({
+      id: `${Date.now()}-cmd-ack`,
+      role: "agent",
+      agentType: "system",
+      content: intent === "regenerate_inference"
+        ? "Re-running feature inference…"
+        : intent === "generate_prd"
+          ? "Generating PRD…"
+          : "Regenerating PRD…",
+      status: "done",
+    });
+    addMessage({ id: `${Date.now()}-cmd-user`, role: "user", content: message });
+    if (featureId) await persistMessage(featureId, "user", message);
+
+    if (intent === "regenerate_inference" && featureId && featureData) {
+      await runInitialInference(featureId, featureData, { mode: "after_clarify_revise" });
+    } else if (intent === "generate_prd") {
+      // Find the latest inference message to approve
+      const infMsg = [...messagesRef.current].reverse().find(
+        (m) => m.role === "agent" && m.agentType === "inference",
+      );
+      if (infMsg) await handleApprove(infMsg.id, "inference");
+    } else if (intent === "regenerate_prd") {
+      await handlePrdRecoveryRegenerate();
+    }
+  }, [pendingCommand, featureId, featureData, runInitialInference, persistMessage]);
+
+  const handleCommandDecline = useCallback(async () => {
+    if (!pendingCommand) return;
+    const { message } = pendingCommand;
+    setPendingCommand(null);
+    // Send as a regular discussion message, bypassing classification
+    skipNextClassifyRef.current = true;
+    await handleSend(message);
+  }, [pendingCommand]);
 
   const handleViewDocument = () => {
     setDocumentPanelKind("prd");
@@ -1959,6 +2118,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 messages={messages}
                 isLoading={isLoading}
                 onSend={handleSend}
+                onStop={handleStop}
                 onApprove={handleApprove}
                 onViewDocument={handleViewDocument}
                 onViewAgentDocument={handleViewAgentDocument}
@@ -1972,6 +2132,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 inferenceReviseHint={inferenceReviseHint}
                 focusComposerToken={focusComposerToken}
                 composerPlaceholder={chatComposerPlaceholder}
+                pendingCommand={pendingCommand}
+                onCommandConfirm={handleCommandConfirm}
+                onCommandDecline={handleCommandDecline}
               />
             ) : (
               <div className={styles.emptyState}>Loading…</div>

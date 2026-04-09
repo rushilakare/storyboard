@@ -111,7 +111,7 @@ export async function PUT(
 
   const { id: featureId } = await params;
   const sb = auth.supabase;
-  let body: { content?: string; finalize?: boolean; replaceLatest?: boolean };
+  let body: { content?: string; finalize?: boolean; replaceLatest?: boolean; title?: string };
   try {
     body = await request.json();
   } catch {
@@ -132,7 +132,7 @@ export async function PUT(
   }
 
   if (body.finalize === true) {
-    const result = await finalizeOpenPrdDraft(sb, featureId, content);
+    const result = await finalizeOpenPrdDraft(sb, featureId, content, body.title || null);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 500 });
     }

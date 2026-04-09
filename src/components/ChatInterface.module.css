@@ -160,6 +160,92 @@
   max-width: var(--chat-content-max);
   margin: 0 auto;
   width: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.attachBtn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  margin-bottom: 6px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.attachBtn:hover:not(:disabled) {
+  background-color: var(--border-highlight);
+  color: var(--text-primary);
+}
+
+.attachBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.composerColumn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composerChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px 0;
+}
+
+.composerChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 12px;
+  max-width: 200px;
+}
+
+.composerChipName {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composerChipSize {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.composerChipRemove {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.composerChipRemove:hover {
+  color: var(--text-primary);
+}
+
+.textareaRow {
   position: relative;
   display: flex;
   align-items: flex-end;
@@ -200,4 +286,48 @@
 .sendBtn:hover {
   background-color: var(--border-highlight);
   color: var(--text-primary);
+}
+
+/* Attachment chips on message bubbles */
+.attachmentChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.attachmentChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 12px;
+  max-width: 200px;
+}
+
+.attachmentChipFailed {
+  border-color: #dc262640;
+  background-color: rgba(220, 38, 38, 0.05);
+}
+
+.attachmentChipIcon {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.attachmentChipName {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachmentChipBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #dc2626;
+  font-weight: 500;
 }

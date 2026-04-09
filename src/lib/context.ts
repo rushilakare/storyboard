@@ -195,6 +195,54 @@ export async function assembleFeatureContext(
 
   const featureBlock = featureLines.join('\n');
 
+  // ── Attachment context ────────────────────────────────────────────────────
+  // 1. Fetch summaries for all ready attachments (always injected)
+  const { data: attachments } = await sb
+    .from('feature_attachments')
+    .select('id, filename, mime_type, summary')
+    .eq('feature_id', featureId)
+    .eq('status', 'ready');
+
+  // 2. Semantic retrieval of top-K relevant chunks
+  let attachmentChunks: Array<{ filename: string; content: string }> = [];
+  if (attachments && attachments.length > 0) {
+    const attQuery = [feature.name, feature.purpose, feature.requirements]
+      .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      .join('\n')
+      .trim();
+    if (attQuery.length >= 12) {
+      try {
+        const embedding = await computeEmbedding(attQuery);
+        const { data: chunks } = await sb.rpc('match_feature_attachment_chunks', {
+          p_feature_id: featureId,
+          p_query_embedding: `[${embedding.join(',')}]`,
+          p_match_count: 6,
+        });
+        attachmentChunks = (chunks ?? []) as Array<{ filename: string; content: string }>;
+      } catch {
+        // proceed without chunk retrieval
+      }
+    }
+  }
+
+  // 3. Build attachment section string (prepended to retrievedSection)
+  let attachmentSection = '';
+  if (attachments && attachments.length > 0) {
+    const summaryLines = attachments
+      .filter((a) => a.summary)
+      .map((a) => `**${a.filename}** (${a.mime_type})\n${a.summary}`);
+    const chunkLines = attachmentChunks.map(
+      (c) => `- [${c.filename}] ${c.content.slice(0, 400)}`,
+    );
+    const parts: string[] = [];
+    if (summaryLines.length > 0)
+      parts.push('### Uploaded reference files (summaries)\n' + summaryLines.join('\n\n'));
+    if (chunkLines.length > 0)
+      parts.push('### Relevant excerpts from attachments\n' + chunkLines.join('\n'));
+    if (parts.length > 0) attachmentSection = '\n\n' + parts.join('\n\n');
+  }
+  // ── End attachment context ─────────────────────────────────────────────────
+
   const knowledgeBase: KnowledgeBaseNotice = { consulted: false, sources: [] };
 
   let retrievedSection = '';
@@ -264,13 +312,16 @@ export async function assembleFeatureContext(
     ].join('\n');
   }
 
+  // Prepend attachment context before KB/conversation retrieved sections
+  const fullRetrievedSection = attachmentSection + retrievedSection;
+
   let systemPrompt: string;
   if (agentKind === 'inference') {
-    systemPrompt = buildInferenceSystem(featureBlock, retrievedSection);
+    systemPrompt = buildInferenceSystem(featureBlock, fullRetrievedSection);
   } else {
     systemPrompt = buildPrdSystem(
       featureBlock,
-      retrievedSection,
+      fullRetrievedSection,
       savedPrdSection,
       Boolean(options?.userQuery?.trim()),
     );

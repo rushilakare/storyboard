@@ -1,4 +1,5 @@
 export const KNOWLEDGE_BUCKET = 'knowledge';
+export const FEATURES_BUCKET = 'features';
 
 /** Max pasted / extracted text length (UTF-16 chars, approximate bound). */
 export const MAX_KNOWLEDGE_TEXT_CHARS = 120_000;

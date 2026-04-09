@@ -236,6 +236,77 @@ export type Database = {
           },
         ];
       };
+      feature_attachments: {
+        Row: {
+          id: string;
+          feature_id: string;
+          user_id: string;
+          filename: string;
+          mime_type: string;
+          byte_size: number;
+          storage_path: string;
+          extracted_text: string | null;
+          summary: string | null;
+          status: 'processing' | 'ready' | 'failed';
+          error_message: string | null;
+          chunk_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          feature_id: string;
+          user_id: string;
+          filename: string;
+          mime_type: string;
+          byte_size?: number;
+          storage_path: string;
+          extracted_text?: string | null;
+          summary?: string | null;
+          status?: 'processing' | 'ready' | 'failed';
+          error_message?: string | null;
+          chunk_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          extracted_text?: string | null;
+          summary?: string | null;
+          status?: 'processing' | 'ready' | 'failed';
+          error_message?: string | null;
+          chunk_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      feature_attachment_chunks: {
+        Row: {
+          id: string;
+          attachment_id: string;
+          feature_id: string;
+          user_id: string;
+          chunk_index: number;
+          content: string;
+          embedding: string | null;
+          search_vector: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          attachment_id: string;
+          feature_id: string;
+          user_id: string;
+          chunk_index: number;
+          content: string;
+          embedding?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          content?: string;
+          embedding?: string | null;
+        };
+        Relationships: [];
+      };
       knowledge_documents: {
         Row: {
           id: string;
@@ -354,6 +425,20 @@ export type Database = {
           rank: number;
         }>;
       };
+      match_feature_attachment_chunks: {
+        Args: {
+          p_feature_id: string;
+          p_query_embedding: string;
+          p_match_count?: number;
+        };
+        Returns: Array<{
+          id: string;
+          attachment_id: string;
+          filename: string;
+          content: string;
+          similarity: number;
+        }>;
+      };
       match_knowledge_chunks: {
         Args: {
           p_query_embedding: string;
@@ -386,3 +471,5 @@ export type FeatureMessage = Database['public']['Tables']['feature_messages']['R
 export type KnowledgeDocument = Database['public']['Tables']['knowledge_documents']['Row'];
 export type KnowledgeChunk = Database['public']['Tables']['knowledge_chunks']['Row'];
 export type AiUsageEvent = Database['public']['Tables']['ai_usage_events']['Row'];
+export type FeatureAttachment = Database['public']['Tables']['feature_attachments']['Row'];
+export type FeatureAttachmentChunk = Database['public']['Tables']['feature_attachment_chunks']['Row'];

@@ -35,3 +35,38 @@ export async function embedAndInsertChunks(
 
   return { chunkCount: chunks.length };
 }
+
+export async function embedAndInsertAttachmentChunks(
+  sb: AppSupabase,
+  userId: string,
+  attachmentId: string,
+  featureId: string,
+  fullText: string,
+): Promise<{ chunkCount: number } | { error: string }> {
+  const chunks = chunkPlainText(fullText);
+  if (chunks.length === 0) {
+    return { error: 'No extractable text to index' };
+  }
+
+  for (let i = 0; i < chunks.length; i += EMBED_BATCH_SIZE) {
+    const batch = chunks.slice(i, i + EMBED_BATCH_SIZE);
+    const vectors = await Promise.all(batch.map((c) => computeEmbedding(c)));
+    const rows = batch.map((content, j) => ({
+      attachment_id: attachmentId,
+      feature_id: featureId,
+      user_id: userId,
+      chunk_index: i + j,
+      content,
+      embedding: `[${vectors[j].join(',')}]` as unknown as string,
+    }));
+
+    const { error } = await sb.from('feature_attachment_chunks').insert(rows);
+    if (error) {
+      console.error('[attachments] chunk insert failed', error);
+      await sb.from('feature_attachment_chunks').delete().eq('attachment_id', attachmentId);
+      return { error: error.message };
+    }
+  }
+
+  return { chunkCount: chunks.length };
+}
