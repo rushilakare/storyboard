@@ -59,6 +59,7 @@ interface ChatProps {
   onStop?: () => void;
   onApprove: (msgId: string, agentType: string) => void;
   isLoading?: boolean;
+  loadingLabel?: string;
   onViewDocument?: () => void;
   onViewAgentDocument?: (kind: "inference") => void;
   clarifyingOpen?: boolean;
@@ -88,6 +89,7 @@ export default function ChatInterface({
   onStop,
   onApprove,
   isLoading,
+  loadingLabel,
   onViewDocument,
   onViewAgentDocument,
   clarifyingOpen,
@@ -260,10 +262,19 @@ export default function ChatInterface({
         ))}
         {isLoading && (
           <div className={`${styles.messageBox} ${styles.agentMsg}`}>
-             <div className={styles.avatar}>AI</div>
-             <div className={styles.messageContent}>
-                <div className={styles.messageText}>Thinking...</div>
-             </div>
+            <div className={styles.avatar}>AI</div>
+            <div className={styles.messageContent}>
+              <div className={styles.thinkingBubble}>
+                {loadingLabel && (
+                  <span className={styles.thinkingLabel}>{loadingLabel}</span>
+                )}
+                <div className={styles.thinkingDots} aria-label={loadingLabel ?? "Thinking"} role="status">
+                  <span className={styles.thinkingDot} />
+                  <span className={styles.thinkingDot} />
+                  <span className={styles.thinkingDot} />
+                </div>
+              </div>
+            </div>
           </div>
         )}
         {pendingCommand && (

@@ -235,6 +235,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   const [chatStarted, setChatStarted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingLabel, setLoadingLabel] = useState<string>("");
   const [featureData, setFeatureData] = useState<{
     name: string;
     purpose: string;
@@ -721,6 +722,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       const abortCtrl = new AbortController();
       abortControllerRef.current = abortCtrl;
       streamingRef.current = true;
+      setLoadingLabel("Analyzing your idea…");
       setIsLoading(true);
       let narrativeForPersistence = "";
       let parsedQuestions: ClarifyingQuestion[] = [];
@@ -772,6 +774,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         if ((e as Error)?.name !== "AbortError") console.error(e);
       } finally {
         streamingRef.current = false;
+        setLoadingLabel("");
         setIsLoading(false);
         abortControllerRef.current = null;
       }
@@ -1006,6 +1009,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const fd = featureData;
     if (!fid || !fd) return;
     setPreInferenceQuestionsError(null);
+    setLoadingLabel("Fetching questions…");
     setIsLoading(true);
     streamingRef.current = true;
     try {
@@ -1020,6 +1024,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       }
       setPreInferenceQuestionsError(result.error);
     } finally {
+      setLoadingLabel("");
       setIsLoading(false);
       streamingRef.current = false;
     }
@@ -1041,6 +1046,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       purpose: data.purpose,
       requirements: data.requirements,
     });
+    setLoadingLabel("Saving your feature…");
     setIsLoading(true);
 
     let newId: string | null = null;
@@ -1058,6 +1064,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         setFeatureCreateError(errText || res.statusText || "Could not create feature.");
+        setLoadingLabel("");
         setIsLoading(false);
         return;
       }
@@ -1067,11 +1074,13 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     } catch (e) {
       console.error("Failed to persist feature", e);
       setFeatureCreateError(e instanceof Error ? e.message : "Could not create feature.");
+      setLoadingLabel("");
       setIsLoading(false);
       return;
     }
 
     if (!newId) {
+      setLoadingLabel("");
       setIsLoading(false);
       return;
     }
@@ -1080,6 +1089,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
     // Upload attachments before navigating (so they're ready for the first agent call)
     if (data.files && data.files.length > 0) {
+      setLoadingLabel("Uploading files…");
       for (let i = 0; i < data.files.length; i++) {
         const f = data.files[i];
         setFeatureCreateError(`Uploading ${f.name} (${i + 1} of ${data.files.length})…`);
@@ -1093,12 +1103,14 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           if (!attRes.ok) {
             const errText = await attRes.text().catch(() => "");
             setFeatureCreateError(errText || `Failed to upload ${f.name}`);
+            setLoadingLabel("");
             setIsLoading(false);
             return;
           }
           // status:'failed' is non-blocking — extraction error on the server side
         } catch (e) {
           setFeatureCreateError(e instanceof Error ? e.message : `Failed to upload ${f.name}`);
+          setLoadingLabel("");
           setIsLoading(false);
           return;
         }
@@ -1115,7 +1127,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     addMessage({ id: Date.now().toString(), role: "user", content: userContent });
     await persistMessage(createdFeatureId, "user", userContent);
 
+    setLoadingLabel("Checking for questions…");
     const qResult = await fetchPreInferenceQuestions(createdFeatureId, data);
+    setLoadingLabel("");
     setIsLoading(false);
     streamingRef.current = false;
 
@@ -1193,6 +1207,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const uploadedAttachments: { id: string; filename: string; mime_type: string; status: "ready" | "failed" }[] = [];
     const fid = featureId;
     if (files && files.length > 0 && fid) {
+      setLoadingLabel("Uploading files…");
       setIsLoading(true);
       for (const f of files) {
         try {
@@ -1204,6 +1219,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           });
           if (!attRes.ok) {
             // HTTP error — abort the send
+            setLoadingLabel("");
             setIsLoading(false);
             return;
           }
@@ -1215,6 +1231,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             status: att.status === "failed" ? "failed" : "ready",
           });
         } catch {
+          setLoadingLabel("");
           setIsLoading(false);
           return;
         }
@@ -1265,6 +1282,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
+    setLoadingLabel(isPrdRevision ? "Writing your PRD…" : "Analyzing your feature…");
     setIsLoading(true);
     let agentContent = "";
     let prdFetchSucceeded = false;
@@ -1407,6 +1425,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     if (isPrdRevision) {
       prdStreamingBufferRef.current = "";
     }
+    setLoadingLabel("");
     setIsLoading(false);
     streamingRef.current = false;
     abortControllerRef.current = null;
@@ -1414,6 +1433,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
 
   // ── Approve + Next Stage ──────────────────────────────────────────
   const handleApprove = async (msgId: string, agentType: string) => {
+    setLoadingLabel("Preparing your PRD…");
     setIsLoading(true);
     setMessages((prev) =>
       prev.map((m) => (m.id === msgId ? { ...m, status: "done" } : m)),
@@ -1565,6 +1585,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     } catch (e) {
       console.error(e);
     }
+    setLoadingLabel("");
     setIsLoading(false);
   };
 
@@ -1577,6 +1598,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
+    setLoadingLabel("Resuming PRD draft…");
     setIsLoading(true);
     prdStreamingBufferRef.current = partial;
     try {
@@ -1604,6 +1626,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         setPrdRecoveryPromptOpen(true);
       }
     } finally {
+      setLoadingLabel("");
       setIsLoading(false);
       streamingRef.current = false;
       prdStreamingBufferRef.current = "";
@@ -1621,6 +1644,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
+    setLoadingLabel("Writing your PRD…");
     setIsLoading(true);
     try {
       await fetch(`/api/features/${fid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "generating" }) });
@@ -1650,6 +1674,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         setPrdRecoveryPromptOpen(true);
       }
     } finally {
+      setLoadingLabel("");
       setIsLoading(false);
       streamingRef.current = false;
       prdStreamingBufferRef.current = "";
@@ -2117,6 +2142,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
               <ChatInterface
                 messages={messages}
                 isLoading={isLoading}
+                loadingLabel={loadingLabel}
                 onSend={handleSend}
                 onStop={handleStop}
                 onApprove={handleApprove}
