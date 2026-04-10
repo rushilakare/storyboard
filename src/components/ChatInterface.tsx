@@ -111,6 +111,11 @@ export default function ChatInterface({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastFocusTokenRef = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
   useEffect(() => {
     if (focusComposerToken <= 0 || focusComposerToken === lastFocusTokenRef.current) return;
@@ -161,19 +166,19 @@ export default function ChatInterface({
               {msg.role === "user" ? "ME" : "AI"}
             </div>
             <div className={styles.messageContent}>
-              <div className={styles.messageHeader}>
-                <span className={styles.senderName}>
-                  {msg.role === "user"
-                    ? "You"
-                    : msg.agentType === "prd"
+              {msg.role === "agent" && (
+                <div className={styles.messageHeader}>
+                  <span className={styles.senderName}>
+                    {msg.agentType === "prd"
                       ? "Document Agent"
                       : msg.agentType === "system"
                         ? "System"
                         : msg.agentType === "discussion"
                           ? "Assistant"
                           : "Product AI"}
-                </span>
-              </div>
+                  </span>
+                </div>
+              )}
               <div className={styles.messageText}>
                 {msg.content}
               </div>
@@ -186,7 +191,11 @@ export default function ChatInterface({
                       className={`${styles.attachmentChip} ${att.status === "failed" ? styles.attachmentChipFailed : ""}`}
                       title={att.filename}
                     >
-                      <span className={styles.attachmentChipIcon}>📎</span>
+                      <span className={styles.attachmentChipIcon}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48" />
+                          </svg>
+                        </span>
                       <span className={styles.attachmentChipName}>
                         {att.filename.length > 24 ? att.filename.slice(0, 22) + "…" : att.filename}
                       </span>
@@ -299,6 +308,7 @@ export default function ChatInterface({
             </div>
           </div>
         )}
+        <div ref={bottomRef} />
         </div>
       </div>
 

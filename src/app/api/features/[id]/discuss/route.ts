@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import {
   ARTIFACT_KIND_INFERENCE,
@@ -134,25 +134,21 @@ Rules:
     message,
   ].join('\n');
 
-  try {
-    const { text, usage } = await generateText({
-      model: MODEL,
-      system,
-      prompt,
-      maxOutputTokens: 2048,
-    });
+  const result = streamText({
+    model: MODEL,
+    system,
+    prompt,
+    maxOutputTokens: 2048,
+    onFinish: async ({ usage }) => {
+      await recordAiUsage(sb, {
+        userId: auth.userId,
+        featureId,
+        source: 'discuss',
+        modelId: MODEL_GPT_4O_MINI,
+        usage,
+      });
+    },
+  });
 
-    await recordAiUsage(sb, {
-      userId: auth.userId,
-      featureId,
-      source: 'discuss',
-      modelId: MODEL_GPT_4O_MINI,
-      usage,
-    });
-
-    return NextResponse.json({ reply: text.trim() || '…' });
-  } catch (e) {
-    console.error('discuss', e);
-    return NextResponse.json({ error: 'Discussion request failed' }, { status: 500 });
-  }
+  return result.toTextStreamResponse();
 }

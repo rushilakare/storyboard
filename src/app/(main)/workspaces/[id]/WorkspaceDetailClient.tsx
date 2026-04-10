@@ -1159,10 +1159,19 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const doClassify = !skipNextClassifyRef.current;
     skipNextClassifyRef.current = false;
 
+    // Show user message immediately before any async work
+    addMessage({ id: Date.now().toString(), role: "user", content: text });
+    setLoadingLabel("Thinking…");
+    setIsLoading(true);
+
     // LLM intent classification (only when we have a feature context, skip when explicitly bypassed)
+    let routeToDiscussion = false;
+    let hasInference = false;
+    let hasPrd = false;
+
     if (featureId && doClassify) {
-      const hasInference = messagesRef.current.some((m) => m.role === "agent" && m.agentType === "inference");
-      const hasPrd = messagesRef.current.some((m) => m.role === "agent" && m.agentType === "prd");
+      hasInference = messagesRef.current.some((m) => m.role === "agent" && m.agentType === "inference");
+      hasPrd = messagesRef.current.some((m) => m.role === "agent" && m.agentType === "prd");
       try {
         const classifyRes = await fetch(`/api/features/${featureId}/classify`, {
           method: "POST",
@@ -1172,13 +1181,82 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
         if (classifyRes.ok) {
           const { intent } = await classifyRes.json() as { intent: string };
           if (intent === "regenerate_inference" || intent === "generate_prd" || intent === "regenerate_prd") {
+            setLoadingLabel("");
+            setIsLoading(false);
             setPendingCommand({ intent: intent as "regenerate_inference" | "generate_prd" | "regenerate_prd", message: text });
             return;
           }
+          // Classifier returned "discussion" and there's context to discuss
+          if (intent === "discussion" && hasInference) {
+            routeToDiscussion = true;
+          }
+        } else if (hasInference && hasPrd) {
+          routeToDiscussion = true;
         }
       } catch {
-        // classification failed — treat as discussion
+        if (hasInference && hasPrd) routeToDiscussion = true;
       }
+    }
+
+    // ── Discussion branch — inline streaming reply, no document agent, no artifact ──
+    if (routeToDiscussion && featureId) {
+      const fid = featureId;
+
+      // Persist user message in background
+      persistMessage(fid, "user", text, null, null).catch(console.error);
+
+      const discussMsgId = Date.now().toString() + "-discuss";
+      const abortCtrl = new AbortController();
+      abortControllerRef.current = abortCtrl;
+      streamingRef.current = true;
+
+      // isLoading + loadingLabel already set above — dots show while classify ran and while stream starts
+      let discussContent = "";
+      try {
+        const res = await fetch(`/api/features/${fid}/discuss`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text }),
+          signal: abortCtrl.signal,
+        });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            discussContent += chunk;
+            // Add bubble on first chunk so dots → content transition is seamless
+            if (discussContent.length === chunk.length) {
+              addMessage({ id: discussMsgId, role: "agent", agentType: "discussion", content: discussContent, status: "pending" });
+              setIsLoading(false);
+              setLoadingLabel("");
+            } else {
+              setMessages((prev) => prev.map((m) => m.id === discussMsgId ? { ...m, content: discussContent } : m));
+            }
+          }
+          setMessages((prev) => prev.map((m) => m.id === discussMsgId ? { ...m, status: "done" as const } : m));
+          if (discussContent) await persistMessage(fid, "assistant", discussContent, "discussion", null);
+        } else {
+          console.error("discuss failed", res.statusText);
+          addMessage({ id: discussMsgId, role: "agent", agentType: "discussion", content: "Discussion request failed. Please try again.", status: "needs_review" });
+        }
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") {
+          if (discussContent) {
+            setMessages((prev) => prev.map((m) => m.id === discussMsgId ? { ...m, status: "done" as const } : m));
+          }
+        } else {
+          addMessage({ id: discussMsgId, role: "agent", agentType: "discussion", content: "Discussion request failed. Please try again.", status: "needs_review" });
+        }
+      }
+
+      setLoadingLabel("");
+      setIsLoading(false);
+      streamingRef.current = false;
+      abortControllerRef.current = null;
+      return;
     }
 
     const isPrdRevision =
@@ -1209,7 +1287,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const fid = featureId;
     if (files && files.length > 0 && fid) {
       setLoadingLabel("Uploading files…");
-      setIsLoading(true);
       for (const f of files) {
         try {
           const form = new FormData();
@@ -1219,7 +1296,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
             body: form,
           });
           if (!attRes.ok) {
-            // HTTP error — abort the send
             setLoadingLabel("");
             setIsLoading(false);
             return;
@@ -1237,14 +1313,15 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
           return;
         }
       }
+      // Patch attachment chips onto the already-visible user message
+      if (uploadedAttachments.length > 0) {
+        setMessages((prev) => {
+          const lastUser = [...prev].reverse().find((m) => m.role === "user");
+          if (!lastUser) return prev;
+          return prev.map((m) => m.id === lastUser.id ? { ...m, attachments: uploadedAttachments } : m);
+        });
+      }
     }
-
-    addMessage({
-      id: Date.now().toString(),
-      role: "user",
-      content: text,
-      attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
-    });
 
     if (fid) {
       const meta = uploadedAttachments.length > 0
@@ -1284,7 +1361,6 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     abortControllerRef.current = abortCtrl;
     streamingRef.current = true;
     setLoadingLabel(isPrdRevision ? "Writing your PRD…" : "Analyzing your feature…");
-    setIsLoading(true);
     let agentContent = "";
     let prdFetchSucceeded = false;
     let prdStreamError = false;
