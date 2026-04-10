@@ -24,6 +24,7 @@
   background: var(--bg-surface);
   color: var(--text-primary);
   cursor: pointer;
+  transition: background-color 0.1s;
 }
 
 .backBtn:hover {
@@ -39,6 +40,11 @@
   background: var(--text-primary);
   color: var(--bg-surface);
   cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.downloadBtn:hover:not(:disabled) {
+  background-color: #2a2a2a;
 }
 
 .downloadBtn:disabled {

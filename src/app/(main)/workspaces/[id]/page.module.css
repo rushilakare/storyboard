@@ -62,6 +62,7 @@
   padding: 0 24px;
   flex-shrink: 0;
   justify-content: space-between;
+  background-color: var(--bg-surface);
 }
 
 .paneTitle {
@@ -148,6 +149,7 @@
   background: var(--bg-surface);
   color: var(--text-primary);
   cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s;
 }
 
 .closeDocBtn:hover {
@@ -470,6 +472,7 @@
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 0.1s, border-color 0.1s;
 }
 
 .docBubbleBtn:hover {
@@ -491,6 +494,7 @@
   font-weight: 500;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.1s;
 }
 
 .docToolbarBtn:hover {

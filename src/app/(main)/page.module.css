@@ -38,15 +38,15 @@
   background-color: var(--text-primary);
   color: var(--bg-color);
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: background-color 0.15s;
 }
 
 .primaryButton:hover {
-  opacity: 0.9;
+  background-color: #2a2a2a;
 }
 
 .metricsContainer {
@@ -61,6 +61,14 @@
   padding: 20px;
   border-radius: 6px;
   background-color: var(--bg-surface);
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow 0.15s, border-color 0.15s;
+  cursor: default;
+}
+
+.metricCard:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-highlight);
 }
 
 .metricLabel {
@@ -106,7 +114,8 @@
 
 .listSearchInput:focus {
   outline: none;
-  border-color: var(--text-muted);
+  border-color: var(--accent-color);
+  box-shadow: var(--focus-ring);
 }
 
 .section {
@@ -169,23 +178,31 @@
   align-items: center;
   gap: 6px;
   color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background-color: var(--bg-surface-hover);
 }
 
 .statusBadge::before {
   content: "";
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: currentColor;
+  flex-shrink: 0;
 }
 
-.statusBadge.inProgress::before {
+.statusBadge.inProgress {
   color: var(--accent-color);
+  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
 }
 
-.statusBadge.review::before {
-  color: #f2c94c;
+.statusBadge.review {
+  color: #7c5f00;
+  background-color: color-mix(in srgb, #f2c94c 18%, transparent);
 }
 
 .priorityHigh {
@@ -202,6 +219,11 @@
 
 .draft::before {
   color: var(--text-muted);
+}
+
+.statusBadge.done {
+  color: var(--success-color);
+  background-color: color-mix(in srgb, var(--success-color) 10%, transparent);
 }
 
 .done::before {
