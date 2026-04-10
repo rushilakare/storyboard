@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import styles from "./ChatInterface.module.css";
 import ClarifyingQuestionsModal from "./ClarifyingQuestionsModal";
 import type { ClarificationAnswers, ClarifyingQuestion } from "@/lib/postInferenceQuestions";
@@ -18,6 +20,7 @@ const ALLOWED_ATTACH_TYPES = new Set([
   "image/gif",
 ]);
 const MAX_ATTACH_BYTES = 15 * 1024 * 1024;
+const MAX_ATTACH_COUNT = 5;
 
 function effectiveAttachMime(file: File): string {
   const ext = file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase();
@@ -43,6 +46,23 @@ export interface MessageAttachment {
   status?: "ready" | "failed";
 }
 
+export interface UploadedAttachment {
+  id: string;
+  filename: string;
+  mime_type: string;
+  status: "ready" | "failed";
+}
+
+type AttachState = {
+  localKey: string;
+  file: File;
+  filename: string;
+  mime_type: string;
+  byte_size: number;
+  status: "uploading" | "ready" | "failed";
+  id?: string;
+};
+
 export interface Message {
   id: string;
   role: "user" | "agent";
@@ -55,7 +75,8 @@ export interface Message {
 
 interface ChatProps {
   messages: Message[];
-  onSend: (text: string, files?: File[]) => void;
+  onSend: (text: string, attachments?: UploadedAttachment[]) => void;
+  uploadFile?: (file: File) => Promise<UploadedAttachment>;
   onStop?: () => void;
   onApprove: (msgId: string, agentType: string) => void;
   isLoading?: boolean;
@@ -105,9 +126,10 @@ export default function ChatInterface({
   pendingCommand,
   onCommandConfirm,
   onCommandDecline,
+  uploadFile,
 }: ChatProps) {
   const [inputText, setInputText] = useState("");
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachState[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastFocusTokenRef = useRef(0);
@@ -131,20 +153,62 @@ export default function ChatInterface({
         ? "Describe what to change in the feature inference…"
         : (composerPlaceholder ?? "Type a message to revise…");
 
+  const triggerUpload = useCallback(async (entry: AttachState) => {
+    if (!uploadFile) {
+      // No upload handler — mark ready immediately (caller handles nothing)
+      setAttachedFiles((prev) =>
+        prev.map((a) => a.localKey === entry.localKey ? { ...a, status: "ready" as const } : a),
+      );
+      return;
+    }
+    try {
+      const result = await uploadFile(entry.file);
+      setAttachedFiles((prev) =>
+        prev.map((a) =>
+          a.localKey === entry.localKey
+            ? { ...a, id: result.id, status: result.status }
+            : a,
+        ),
+      );
+    } catch {
+      setAttachedFiles((prev) =>
+        prev.map((a) =>
+          a.localKey === entry.localKey ? { ...a, status: "failed" as const } : a,
+        ),
+      );
+    }
+  }, [uploadFile]);
+
   function addAttachFiles(incoming: FileList | File[]) {
-    const next = [...attachedFiles];
+    const toAdd: AttachState[] = [];
     for (const f of Array.from(incoming)) {
       if (f.size > MAX_ATTACH_BYTES) continue;
       const mime = effectiveAttachMime(f);
       if (!ALLOWED_ATTACH_TYPES.has(mime) && !mime.startsWith("text/")) continue;
-      if (!next.some((x) => x.name === f.name && x.size === f.size)) next.push(f);
+      const localKey = `${f.name}__${f.size}`;
+      if (attachedFiles.some((x) => x.localKey === localKey)) continue;
+      toAdd.push({ localKey, file: f, filename: f.name, mime_type: mime, byte_size: f.size, status: "uploading" });
     }
-    setAttachedFiles(next);
+    // Enforce max attachment count
+    const remaining = MAX_ATTACH_COUNT - attachedFiles.length;
+    if (remaining <= 0 || toAdd.length === 0) return;
+    if (toAdd.length > remaining) toAdd.splice(remaining);
+    setAttachedFiles((prev) => [...prev, ...toAdd]);
+    // Trigger uploads immediately
+    for (const entry of toAdd) triggerUpload(entry);
   }
 
+  const isUploading = attachedFiles.some((a) => a.status === "uploading");
+
   const handleSend = () => {
-    if (!inputText.trim() || isLoading) return;
-    onSend(inputText, attachedFiles.length > 0 ? attachedFiles : undefined);
+    if (!inputText.trim() || isLoading || isUploading) return;
+    const ready = attachedFiles.filter((a) => a.id).map((a) => ({
+      id: a.id!,
+      filename: a.filename,
+      mime_type: a.mime_type,
+      status: a.status as "ready" | "failed",
+    }));
+    onSend(inputText, ready.length > 0 ? ready : undefined);
     setInputText("");
     setAttachedFiles([]);
   };
@@ -180,7 +244,11 @@ export default function ChatInterface({
                 </div>
               )}
               <div className={styles.messageText}>
-                {msg.content}
+                {msg.role === "agent" ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
 
               {msg.attachments && msg.attachments.length > 0 && (
@@ -329,9 +397,9 @@ export default function ChatInterface({
               type="button"
               className={styles.attachBtn}
               onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
+              disabled={isLoading || attachedFiles.length >= MAX_ATTACH_COUNT}
               aria-label="Attach file"
-              title="Attach file"
+              title={attachedFiles.length >= MAX_ATTACH_COUNT ? `Max ${MAX_ATTACH_COUNT} files` : "Attach file"}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48" />
@@ -348,17 +416,29 @@ export default function ChatInterface({
             <div className={styles.composerColumn}>
               {attachedFiles.length > 0 && (
                 <div className={styles.composerChips}>
-                  {attachedFiles.map((f, i) => (
-                    <span key={i} className={styles.composerChip}>
+                  {attachedFiles.map((a) => (
+                    <span
+                      key={a.localKey}
+                      className={`${styles.composerChip} ${a.status === "failed" ? styles.composerChipFailed : ""}`}
+                    >
+                      {a.status === "uploading" ? (
+                        <svg className={styles.composerChipSpinner} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                        </svg>
+                      ) : (
+                        <span className={styles.composerChipIcon}>
+                          {a.status === "failed" ? "✕" : "✓"}
+                        </span>
+                      )}
                       <span className={styles.composerChipName}>
-                        {f.name.length > 20 ? f.name.slice(0, 18) + "…" : f.name}
+                        {a.filename.length > 20 ? a.filename.slice(0, 18) + "…" : a.filename}
                       </span>
-                      <span className={styles.composerChipSize}>{formatAttachBytes(f.size)}</span>
+                      <span className={styles.composerChipSize}>{formatAttachBytes(a.byte_size)}</span>
                       <button
                         type="button"
                         className={styles.composerChipRemove}
-                        onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))}
-                        aria-label={`Remove ${f.name}`}
+                        onClick={() => setAttachedFiles((prev) => prev.filter((x) => x.localKey !== a.localKey))}
+                        aria-label={`Remove ${a.filename}`}
                       >
                         ×
                       </button>
@@ -384,7 +464,7 @@ export default function ChatInterface({
                     </svg>
                   </button>
                 ) : (
-                  <button className={styles.sendBtn} onClick={handleSend} disabled={!inputText.trim()} type="button">
+                  <button className={styles.sendBtn} onClick={handleSend} disabled={!inputText.trim() || isUploading} type="button">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                     </svg>

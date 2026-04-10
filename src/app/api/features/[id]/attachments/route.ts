@@ -149,6 +149,15 @@ export async function POST(
     }
     plain = extracted.text;
   } catch (e) {
+    // For images, extraction failure is OK — mark ready so vision model can read it
+    if (mime.startsWith('image/')) {
+      await sb
+        .from('feature_attachments')
+        .update({ status: 'ready', extracted_text: null, summary: null, chunk_count: 0, error_message: null })
+        .eq('id', attachmentId);
+      const { data: row } = await sb.from('feature_attachments').select('*').eq('id', attachmentId).single();
+      return NextResponse.json(row, { status: 201 });
+    }
     const msg = e instanceof Error ? e.message : 'Extraction failed';
     await markFailed(sb, attachmentId, msg, storagePath);
     const { data: row } = await sb.from('feature_attachments').select('*').eq('id', attachmentId).single();
@@ -156,6 +165,16 @@ export async function POST(
   }
 
   if (!plain.trim()) {
+    // For images, mark as ready even without extracted text — the vision model
+    // can read the image directly via a signed storage URL.
+    if (mime.startsWith('image/')) {
+      await sb
+        .from('feature_attachments')
+        .update({ status: 'ready', extracted_text: null, summary: null, chunk_count: 0, error_message: null })
+        .eq('id', attachmentId);
+      const { data: row } = await sb.from('feature_attachments').select('*').eq('id', attachmentId).single();
+      return NextResponse.json(row, { status: 201 });
+    }
     await markFailed(sb, attachmentId, 'No text could be extracted from this file', storagePath);
     const { data: row } = await sb.from('feature_attachments').select('*').eq('id', attachmentId).single();
     return NextResponse.json(row, { status: 201 });
