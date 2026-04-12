@@ -98,10 +98,6 @@
   text-align: left;
 }
 
-.userMsg .messageText {
-  text-align: left;
-}
-
 .userMsg .actions {
   justify-content: flex-end;
 }
@@ -126,7 +122,60 @@
   font-size: 14px;
   color: var(--text-primary);
   line-height: 1.65;
+}
+
+.userMsg .messageText {
+  text-align: left;
   white-space: pre-wrap;
+}
+
+/* Markdown prose styles for agent messages */
+.agentMsg .messageText p {
+  margin: 0 0 0.5em;
+}
+.agentMsg .messageText p:last-child {
+  margin-bottom: 0;
+}
+.agentMsg .messageText ul,
+.agentMsg .messageText ol {
+  margin: 0.25em 0 0.5em;
+  padding-left: 1.4em;
+}
+.agentMsg .messageText li {
+  margin-bottom: 0.2em;
+}
+.agentMsg .messageText strong {
+  font-weight: 600;
+}
+.agentMsg .messageText code {
+  font-size: 0.9em;
+  background-color: var(--bg-surface-hover, rgba(0,0,0,0.06));
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}
+.agentMsg .messageText pre {
+  margin: 0.5em 0;
+  padding: 0.6em 0.8em;
+  background-color: var(--bg-surface-hover, rgba(0,0,0,0.06));
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.agentMsg .messageText pre code {
+  background: none;
+  padding: 0;
+}
+.agentMsg .messageText h1,
+.agentMsg .messageText h2,
+.agentMsg .messageText h3 {
+  margin: 0.6em 0 0.3em;
+  font-size: 1em;
+  font-weight: 600;
+}
+.agentMsg .messageText blockquote {
+  margin: 0.4em 0;
+  padding-left: 0.8em;
+  border-left: 3px solid var(--border-color);
+  color: var(--text-secondary);
 }
 
 .actions {
@@ -264,6 +313,27 @@
 
 .composerChipRemove:hover {
   color: var(--text-primary);
+}
+
+.composerChipFailed {
+  border-color: var(--color-error, #ef4444);
+  opacity: 0.85;
+}
+
+.composerChipIcon {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.composerChipSpinner {
+  flex-shrink: 0;
+  animation: spin 0.9s linear infinite;
+  color: var(--text-muted);
 }
 
 .textareaRow {

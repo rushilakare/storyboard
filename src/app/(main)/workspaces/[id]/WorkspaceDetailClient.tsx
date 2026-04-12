@@ -15,7 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import styles from "./page.module.css";
 import NewFeatureModal from "@/components/NewFeatureModal";
-import ChatInterface, { Message } from "@/components/ChatInterface";
+import ChatInterface, { Message, type UploadedAttachment } from "@/components/ChatInterface";
 import PrdRecoveryBanner from "@/components/PrdRecoveryBanner";
 import PrdDocumentEditor from "@/components/PrdDocumentEditor";
 import { ArtifactListExportSplitButton } from "@/components/DocumentExportSplitButton";
@@ -1147,7 +1147,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
   };
 
   // ── User Revision ─────────────────────────────────────────────────
-  const handleSend = async (text: string, files?: File[]) => {
+  const handleSend = async (text: string, attachments?: UploadedAttachment[]) => {
     const lastAgentMsg = [...messagesRef.current]
       .reverse()
       .find((m) => m.role === "agent" && m.agentType !== "system");
@@ -1159,8 +1159,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     const doClassify = !skipNextClassifyRef.current;
     skipNextClassifyRef.current = false;
 
-    // Show user message immediately before any async work
-    addMessage({ id: Date.now().toString(), role: "user", content: text });
+    // Files are uploaded before send (in ChatInterface); available as metadata here
+    const uploadedAttachments = attachments ?? [];
+
+    // Show user message immediately before any async work — include attachments so chips appear instantly
+    addMessage({
+      id: Date.now().toString(),
+      role: "user",
+      content: text,
+      attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+    });
     setLoadingLabel("Thinking…");
     setIsLoading(true);
 
@@ -1202,8 +1210,9 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     if (routeToDiscussion && featureId) {
       const fid = featureId;
 
-      // Persist user message in background
-      persistMessage(fid, "user", text, null, null).catch(console.error);
+      // Persist user message in background (include attachment metadata if any)
+      const discussMeta = uploadedAttachments.length > 0 ? { attachments: uploadedAttachments } : null;
+      persistMessage(fid, "user", text, null, discussMeta).catch(console.error);
 
       const discussMsgId = Date.now().toString() + "-discuss";
       const abortCtrl = new AbortController();
@@ -1213,10 +1222,16 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       // isLoading + loadingLabel already set above — dots show while classify ran and while stream starts
       let discussContent = "";
       try {
+        const readyAttachmentIds = uploadedAttachments
+          .filter((a) => a.status === "ready")
+          .map((a) => a.id);
         const res = await fetch(`/api/features/${fid}/discuss`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({
+            message: text,
+            ...(readyAttachmentIds.length > 0 && { attachmentIds: readyAttachmentIds }),
+          }),
           signal: abortCtrl.signal,
         });
         if (res.ok && res.body) {
@@ -1282,46 +1297,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
       );
     }
 
-    // Upload attachments before posting the message
-    const uploadedAttachments: { id: string; filename: string; mime_type: string; status: "ready" | "failed" }[] = [];
     const fid = featureId;
-    if (files && files.length > 0 && fid) {
-      setLoadingLabel("Uploading files…");
-      for (const f of files) {
-        try {
-          const form = new FormData();
-          form.append("file", f);
-          const attRes = await fetch(`/api/features/${fid}/attachments`, {
-            method: "POST",
-            body: form,
-          });
-          if (!attRes.ok) {
-            setLoadingLabel("");
-            setIsLoading(false);
-            return;
-          }
-          const att = await attRes.json() as { id: string; filename: string; mime_type: string; status: string };
-          uploadedAttachments.push({
-            id: att.id,
-            filename: att.filename,
-            mime_type: att.mime_type,
-            status: att.status === "failed" ? "failed" : "ready",
-          });
-        } catch {
-          setLoadingLabel("");
-          setIsLoading(false);
-          return;
-        }
-      }
-      // Patch attachment chips onto the already-visible user message
-      if (uploadedAttachments.length > 0) {
-        setMessages((prev) => {
-          const lastUser = [...prev].reverse().find((m) => m.role === "user");
-          if (!lastUser) return prev;
-          return prev.map((m) => m.id === lastUser.id ? { ...m, attachments: uploadedAttachments } : m);
-        });
-      }
-    }
 
     if (fid) {
       const meta = uploadedAttachments.length > 0
@@ -1879,6 +1855,21 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
     abortControllerRef.current?.abort();
   }, []);
 
+  const uploadFile = useCallback(async (file: File): Promise<UploadedAttachment> => {
+    const fid = featureIdRef.current;
+    if (!fid) return { id: "", filename: file.name, mime_type: file.type, status: "failed" };
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/features/${fid}/attachments`, { method: "POST", body: form });
+      if (!res.ok) return { id: "", filename: file.name, mime_type: file.type, status: "failed" };
+      const att = await res.json() as { id: string; filename: string; mime_type: string; status: string };
+      return { id: att.id, filename: att.filename, mime_type: att.mime_type, status: att.status === "failed" ? "failed" : "ready" };
+    } catch {
+      return { id: "", filename: file.name, mime_type: file.type, status: "failed" };
+    }
+  }, []);
+
   const handleCommandConfirm = useCallback(async () => {
     if (!pendingCommand) return;
     const { intent, message } = pendingCommand;
@@ -2230,6 +2221,7 @@ export default function WorkspaceDetailClient({ params }: { params: Promise<{ id
                 onSend={handleSend}
                 onStop={handleStop}
                 onApprove={handleApprove}
+                uploadFile={uploadFile}
                 onViewDocument={handleViewDocument}
                 onViewAgentDocument={handleViewAgentDocument}
                 clarifyingOpen={clarifyingOpen}
