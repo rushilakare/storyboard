@@ -853,24 +853,26 @@ export default function AnimatedCharactersLoginPage({
           {mode === 'forgot' ? (
             forgotSent ? (
               <div className="space-y-6 text-center lg:text-left">
-                <h1 className="text-3xl font-bold tracking-tight">
+                <h1 className="font-serif italic text-[22px] font-normal tracking-[-0.015em] text-[var(--text-primary)]">
                   Check your email
                 </h1>
                 <div
-                  className="rounded-lg border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground"
+                  className="rounded-lg border p-4 text-sm"
+                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface-hover)', color: 'var(--text-secondary)' }}
                   role="status"
                   aria-live="polite"
                 >
                   <p>
                     We sent a password reset link to{' '}
-                    <strong className="text-foreground">{forgotEmail}</strong>.
+                    <strong style={{ color: 'var(--text-primary)' }}>{forgotEmail}</strong>.
                   </p>
                   <p className="mt-2">Didn&apos;t get it? Check spam or promotions.</p>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 w-full border-border/60 bg-background hover:bg-accent"
+                  className="h-[38px] w-full"
+                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)', fontSize: '13px', fontWeight: '500' }}
                   onClick={onBackToSignIn}
                 >
                   Back to sign in
@@ -879,7 +881,7 @@ export default function AnimatedCharactersLoginPage({
             ) : (
               <div className="space-y-6">
                 <div className="text-center lg:text-left">
-                  <h1 className="text-3xl font-bold tracking-tight mb-2">
+                  <h1 className="font-serif italic text-[22px] font-normal tracking-[-0.015em] mb-2" style={{ color: 'var(--text-primary)' }}>
                     Forgot password?
                   </h1>
                   <p className="text-muted-foreground text-sm">
@@ -899,27 +901,29 @@ export default function AnimatedCharactersLoginPage({
                       autoComplete="email"
                       onChange={(e) => onForgotEmailChange(e.target.value)}
                       required
-                      className="h-12 bg-background border-border/60 focus-visible:border-primary"
+                      className="h-[38px]"
+                      style={{ border: '1.5px solid var(--border-color)', fontSize: '14px' }}
                     />
                   </div>
                   {forgotError ? (
-                    <div className="p-3 text-sm text-red-400 bg-red-950/20 border border-red-900/30 rounded-lg">
+                    <div className="p-3 text-sm rounded" style={{ color: 'var(--danger-color)', backgroundColor: 'var(--danger-light)', border: '1px solid color-mix(in srgb, var(--danger-color) 25%, transparent)' }}>
                       {forgotError}
                     </div>
                   ) : null}
                   <Button
                     type="submit"
-                    className="w-full h-12 text-base font-medium"
-                    size="lg"
+                    className="w-full h-[38px] font-medium"
+                    style={{ fontSize: '14px' }}
                     disabled={forgotLoading}
                   >
                     {forgotLoading ? '…' : 'Send reset link'}
                   </Button>
                 </form>
-                <div className="text-center text-sm text-muted-foreground">
+                <div className="text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                   <button
                     type="button"
-                    className="text-foreground font-medium hover:underline"
+                    className="font-medium hover:underline"
+                    style={{ color: 'var(--accent-color)' }}
                     onClick={onBackToSignIn}
                   >
                     Back to sign in
@@ -929,17 +933,18 @@ export default function AnimatedCharactersLoginPage({
             )
           ) : showCheckEmail && pendingConfirmationEmail ? (
             <div className="space-y-6 text-center lg:text-left">
-              <h1 className="text-3xl font-bold tracking-tight">
+              <h1 className="font-serif italic text-[22px] font-normal tracking-[-0.015em]" style={{ color: 'var(--text-primary)' }}>
                 Check your email
               </h1>
               <div
-                className="rounded-lg border border-border/60 bg-muted/30 p-4 text-sm text-muted-foreground"
+                className="rounded-lg border p-4 text-sm"
+                style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface-hover)', color: 'var(--text-secondary)' }}
                 role="status"
                 aria-live="polite"
               >
                 <p>
                   Confirm your email before signing in. We sent a link to{' '}
-                  <strong className="text-foreground">
+                  <strong style={{ color: 'var(--text-primary)' }}>
                     {pendingConfirmationEmail}
                   </strong>
                   .
@@ -951,8 +956,8 @@ export default function AnimatedCharactersLoginPage({
               <div className="flex flex-col gap-3">
                 <Button
                   type="button"
-                  className="h-12 w-full text-base font-medium"
-                  size="lg"
+                  className="h-[38px] w-full font-medium"
+                  style={{ fontSize: '14px' }}
                   onClick={onContinueToSignIn}
                 >
                   Continue to sign in
@@ -960,7 +965,8 @@ export default function AnimatedCharactersLoginPage({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 w-full border-border/60 bg-background hover:bg-accent"
+                  className="h-[38px] w-full"
+                  style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-surface)', fontSize: '13px', fontWeight: '500' }}
                   disabled={resendSeconds > 0}
                   onClick={onResendConfirmation}
                 >
@@ -984,10 +990,10 @@ export default function AnimatedCharactersLoginPage({
           ) : (
             <>
               <div className="text-center mb-10 lg:text-left">
-                <h1 className="text-3xl font-bold tracking-tight mb-2">
-                  {mode === 'signin' ? 'Welcome back!' : 'Create your account'}
+                <h1 className="font-serif italic text-[22px] font-normal tracking-[-0.015em] mb-2" style={{ color: 'var(--text-primary)' }}>
+                  {mode === 'signin' ? 'Welcome back.' : 'Create your account.'}
                 </h1>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                   {mode === 'signin'
                     ? 'Please enter your details'
                     : 'Sign up with your email and password'}
@@ -996,7 +1002,8 @@ export default function AnimatedCharactersLoginPage({
 
               {signInAfterConfirmHint ? (
                 <p
-                  className="mb-4 rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 text-sm text-emerald-400"
+                  className="mb-4 rounded p-3 text-sm"
+                  style={{ color: 'var(--success-color)', backgroundColor: 'var(--success-light)', border: '1px solid color-mix(in srgb, var(--success-color) 25%, transparent)' }}
                   role="status"
                   aria-live="polite"
                 >
@@ -1019,7 +1026,8 @@ export default function AnimatedCharactersLoginPage({
                     onFocus={() => setIsTyping(true)}
                     onBlur={() => setIsTyping(false)}
                     required
-                    className="h-12 bg-background border-border/60 focus-visible:border-primary"
+                    className="h-[38px]"
+                    style={{ border: '1.5px solid var(--border-color)', fontSize: '14px' }}
                   />
                 </div>
 
@@ -1041,7 +1049,8 @@ export default function AnimatedCharactersLoginPage({
                       }
                       required
                       minLength={6}
-                      className="h-12 pr-10 bg-background border-border/60 focus-visible:border-primary"
+                      className="h-[38px] pr-10"
+                      style={{ border: '1.5px solid var(--border-color)', fontSize: '14px' }}
                     />
                     <button
                       type="button"
@@ -1073,7 +1082,8 @@ export default function AnimatedCharactersLoginPage({
                   </div>
                   <button
                     type="button"
-                    className="text-sm text-primary hover:underline font-medium shrink-0"
+                    className="text-sm hover:underline font-medium shrink-0"
+                    style={{ color: 'var(--accent-color)' }}
                     onClick={onForgotPassword}
                   >
                     Forgot password?
@@ -1081,15 +1091,15 @@ export default function AnimatedCharactersLoginPage({
                 </div>
 
                 {error ? (
-                  <div className="p-3 text-sm text-red-400 bg-red-950/20 border border-red-900/30 rounded-lg">
+                  <div className="p-3 text-sm rounded" style={{ color: 'var(--danger-color)', backgroundColor: 'var(--danger-light)', border: '1px solid color-mix(in srgb, var(--danger-color) 25%, transparent)' }}>
                     {error}
                   </div>
                 ) : null}
 
                 <Button
                   type="submit"
-                  className="w-full h-12 text-base font-medium"
-                  size="lg"
+                  className="w-full h-[38px] font-medium"
+                  style={{ fontSize: '14px' }}
                   disabled={loading}
                 >
                   {loading
@@ -1104,7 +1114,8 @@ export default function AnimatedCharactersLoginPage({
                 <div className="mt-6">
                   <Button
                     variant="outline"
-                    className="w-full h-12 bg-background border-border/60 hover:bg-accent"
+                    className="w-full h-[38px]"
+                    style={{ border: '1.5px solid var(--border-color)', backgroundColor: 'var(--bg-surface)', fontSize: '13px', fontWeight: '500' }}
                     type="button"
                     onClick={onGoogleLogin}
                   >
@@ -1114,13 +1125,14 @@ export default function AnimatedCharactersLoginPage({
                 </div>
               ) : null}
 
-              <div className="text-center text-sm text-muted-foreground mt-8">
+              <div className="text-center text-sm mt-8" style={{ color: 'var(--text-muted)' }}>
                 {mode === 'signin' ? (
                   <>
                     Don&apos;t have an account?{' '}
                     <button
                       type="button"
-                      className="text-foreground font-medium hover:underline"
+                      className="font-medium hover:underline"
+                      style={{ color: 'var(--accent-color)' }}
                       onClick={() => {
                         onModeChange('signup');
                       }}
@@ -1133,7 +1145,8 @@ export default function AnimatedCharactersLoginPage({
                     Already have an account?{' '}
                     <button
                       type="button"
-                      className="text-foreground font-medium hover:underline"
+                      className="font-medium hover:underline"
+                      style={{ color: 'var(--accent-color)' }}
                       onClick={() => onModeChange('signin')}
                     >
                       Sign in

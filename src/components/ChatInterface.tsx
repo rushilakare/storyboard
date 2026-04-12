@@ -226,9 +226,9 @@ export default function ChatInterface({
         <div className={styles.messageListColumn}>
         {messages.map((msg) => (
           <div key={msg.id} className={`${styles.messageBox} ${msg.role === "user" ? styles.userMsg : styles.agentMsg}`}>
-            <div className={styles.avatar}>
-              {msg.role === "user" ? "ME" : "AI"}
-            </div>
+            {msg.role === "agent" && (
+              <div className={styles.avatar}>AI</div>
+            )}
             <div className={styles.messageContent}>
               {msg.role === "agent" && (
                 <div className={styles.messageHeader}>
@@ -342,14 +342,12 @@ export default function ChatInterface({
             <div className={styles.avatar}>AI</div>
             <div className={styles.messageContent}>
               <div className={styles.thinkingBubble}>
-                {loadingLabel && (
-                  <span className={styles.thinkingLabel}>{loadingLabel}</span>
-                )}
-                <div className={styles.thinkingDots} aria-label={loadingLabel ?? "Thinking"} role="status">
-                  <span className={styles.thinkingDot} />
-                  <span className={styles.thinkingDot} />
-                  <span className={styles.thinkingDot} />
-                </div>
+                <span className={styles.thinkingLabel}>{loadingLabel ?? "Thinking"}</span>
+                <div
+                  className={styles.thinkingBar}
+                  aria-label={loadingLabel ?? "Thinking"}
+                  role="status"
+                />
               </div>
             </div>
           </div>

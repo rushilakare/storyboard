@@ -1,5 +1,5 @@
 .chatContainer {
-  --chat-content-max: 800px;
+  --chat-content-max: 720px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -9,7 +9,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px;
+  padding: 32px 28px;
   min-width: 0;
 }
 
@@ -19,13 +19,13 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   min-width: 0;
 }
 
 .messageBox {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   max-width: 100%;
   width: 100%;
 }
@@ -41,10 +41,11 @@
   margin-right: 0;
 }
 
+/* ── Avatars ── Square, not circle */
 .avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
   background-color: var(--border-highlight);
   color: var(--text-primary);
   display: flex;
@@ -59,32 +60,28 @@
 .agentMsg .avatar {
   background-color: var(--accent-color);
   color: #fff;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-color) 15%, transparent);
+  border-radius: var(--radius-sm);
 }
 
-.userMsg .avatar {
-  background-color: var(--bg-surface-active);
-  color: var(--text-secondary);
-  border: 1.5px solid var(--border-highlight);
-}
 
+/* ── Message content ── */
 .messageContent {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
-/* User messages: pill bubble capped at 78% width */
+/* User bubble */
 .userMsg .messageContent {
   flex: 0 1 auto;
-  max-width: 78%;
+  max-width: 72%;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
   padding: 10px 14px 12px;
-  border-radius: 16px 16px 4px 16px;
-  box-shadow: var(--shadow-xs);
+  border-radius: 12px 12px 3px 12px;
+  box-shadow: var(--shadow-1);
 }
 
 .messageHeader {
@@ -102,11 +99,13 @@
   justify-content: flex-end;
 }
 
+/* Agent sender label — editorial byline style */
 .senderName {
   font-weight: 600;
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-muted);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .agentMsg .senderName {
@@ -127,9 +126,11 @@
 .userMsg .messageText {
   text-align: left;
   white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
-/* Markdown prose styles for agent messages */
+/* Markdown prose for agent messages */
 .agentMsg .messageText p {
   margin: 0 0 0.5em;
 }
@@ -149,15 +150,15 @@
 }
 .agentMsg .messageText code {
   font-size: 0.9em;
-  background-color: var(--bg-surface-hover, rgba(0,0,0,0.06));
+  background-color: var(--bg-surface-active);
   padding: 0.15em 0.35em;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .agentMsg .messageText pre {
   margin: 0.5em 0;
   padding: 0.6em 0.8em;
-  background-color: var(--bg-surface-hover, rgba(0,0,0,0.06));
-  border-radius: 6px;
+  background-color: var(--bg-surface-active);
+  border-radius: var(--radius-sm);
   overflow-x: auto;
 }
 .agentMsg .messageText pre code {
@@ -178,21 +179,25 @@
   color: var(--text-secondary);
 }
 
+/* ── Action buttons ── */
 .actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 14px;
 }
 
 .reviseBtn,
 .updateInferenceBtn,
 .approveBtn {
-  padding: 6px 14px;
+  height: 30px;
+  padding: 0 12px;
   font-size: 12px;
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  transition: background-color var(--duration-base) var(--ease-in-out),
+              border-color var(--duration-base) var(--ease-in-out),
+              color var(--duration-base) var(--ease-in-out);
 }
 
 .reviseBtn,
@@ -220,6 +225,13 @@
   border-color: var(--accent-hover);
 }
 
+.approveBtn:active,
+.reviseBtn:active,
+.updateInferenceBtn:active {
+  transform: scale(0.97);
+}
+
+/* ── Input area ── */
 .inputArea {
   padding: 16px 24px 20px;
   border-top: 1px solid var(--border-color);
@@ -243,16 +255,15 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   background: none;
   border: none;
   margin-bottom: 6px;
-  transition: color 0.15s, background-color 0.15s;
 }
 
 .attachBtn:hover:not(:disabled) {
-  background-color: var(--border-highlight);
+  background-color: var(--bg-surface-hover);
   color: var(--text-primary);
 }
 
@@ -283,7 +294,7 @@
   padding: 3px 8px;
   background-color: var(--bg-surface-hover);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   max-width: 200px;
 }
@@ -316,7 +327,7 @@
 }
 
 .composerChipFailed {
-  border-color: var(--color-error, #ef4444);
+  border-color: var(--danger-color);
   opacity: 0.85;
 }
 
@@ -346,22 +357,23 @@
   width: 100%;
   background-color: var(--bg-surface);
   border: 1.5px solid var(--border-color);
-  border-radius: 12px;
-  padding: 12px 48px 12px 16px;
+  border-radius: var(--radius-lg);
+  padding: 12px 44px 12px 14px;
   color: var(--text-primary);
   font-size: 14px;
   resize: none;
   min-height: 46px;
   max-height: 200px;
   font-family: inherit;
-  box-shadow: var(--shadow-xs);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--duration-base) var(--ease-in-out),
+              box-shadow var(--duration-base) var(--ease-in-out);
 }
 
 .chatInput:focus {
   outline: none;
-  border-color: var(--accent-color);
-  box-shadow: var(--shadow-xs), var(--focus-ring);
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring), var(--shadow-2);
 }
 
 .sendBtn {
@@ -374,9 +386,11 @@
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.1s, color 0.1s;
+  transition: background-color var(--duration-fast),
+              color var(--duration-fast),
+              transform 80ms var(--ease-spring);
   border: none;
   background: none;
 }
@@ -386,15 +400,19 @@
 }
 
 .sendBtn:not([disabled]):hover {
-  background-color: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  background-color: var(--accent-light);
   color: var(--accent-hover);
+}
+
+.sendBtn:not([disabled]):active {
+  transform: scale(0.92);
 }
 
 .sendBtn[disabled] {
   cursor: default;
 }
 
-/* Attachment chips on message bubbles */
+/* Attachment chips on messages */
 .attachmentChips {
   display: flex;
   flex-wrap: wrap;
@@ -409,14 +427,14 @@
   padding: 3px 8px;
   background-color: var(--bg-surface-hover);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius-pill);
   font-size: 12px;
   max-width: 200px;
 }
 
 .attachmentChipFailed {
-  border-color: #dc262640;
-  background-color: rgba(220, 38, 38, 0.05);
+  border-color: rgba(185, 28, 28, 0.35);
+  background-color: rgba(185, 28, 28, 0.04);
 }
 
 .attachmentChipIcon {
@@ -434,52 +452,47 @@
 .attachmentChipBadge {
   flex-shrink: 0;
   font-size: 10px;
-  color: #dc2626;
+  color: var(--danger-color);
   font-weight: 500;
 }
 
-/* ── Animated thinking indicator ─────────────────────────────── */
-
-@keyframes thinkingBounce {
-  0%, 80%, 100% { transform: translateY(0);   opacity: 0.35; }
-  40%            { transform: translateY(-6px); opacity: 1;    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  @keyframes thinkingBounce {
-    0%, 100% { opacity: 0.6; }
-    50%       { opacity: 1;   }
-  }
+/* ── Thinking shimmer bar (replaces 3-dot bounce) ─────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 .thinkingBubble {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .thinkingLabel {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-muted);
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.thinkingDots {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 0;
+.thinkingBar {
+  width: 48px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--accent-light) 0%,
+    var(--accent-color) 40%,
+    var(--accent-light) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
-.thinkingDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background-color: var(--accent-color);
-  animation: thinkingBounce 1.4s ease-in-out infinite;
+@media (prefers-reduced-motion: reduce) {
+  .thinkingBar {
+    animation: none;
+    opacity: 0.5;
+  }
 }
-
-.thinkingDot:nth-child(1) { animation-delay: 0s;   }
-.thinkingDot:nth-child(2) { animation-delay: 0.2s; }
-.thinkingDot:nth-child(3) { animation-delay: 0.4s; }

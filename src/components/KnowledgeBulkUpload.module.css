@@ -13,12 +13,13 @@
 .btn {
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-primary);
   cursor: pointer;
+  transition: background-color var(--duration-base);
 }
 
 .btn:hover:not(:disabled) {
@@ -45,21 +46,22 @@
 }
 
 .dropzone {
-  border: 1px dashed var(--border-color);
-  border-radius: 8px;
+  border: 1.5px dashed var(--border-highlight);
+  border-radius: var(--radius-md);
   padding: 28px 20px;
   text-align: center;
   font-size: 13px;
   color: var(--text-secondary);
   background: var(--bg-surface);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--duration-base), background var(--duration-base);
 }
 
 .dropzone:hover,
 .dropzoneActive {
-  border-color: var(--text-muted);
-  background: var(--bg-surface-hover);
+  border-color: var(--accent-color);
+  background: var(--accent-light);
+  color: var(--accent-color);
 }
 
 .dropzoneDisabled {
@@ -76,9 +78,10 @@
 .panel {
   margin-top: 16px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   overflow: hidden;
+  box-shadow: var(--shadow-1);
 }
 
 .panelHeader {
@@ -88,24 +91,26 @@
   gap: 12px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-color);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .panelHeader button {
   font: inherit;
+  font-size: 12px;
   font-weight: 500;
   text-transform: none;
   letter-spacing: normal;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
+  transition: background-color var(--duration-base);
 }
 
 .panelHeader button:hover {
@@ -154,7 +159,7 @@
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
 }
 
 .statusQueued {
@@ -166,31 +171,31 @@
 }
 
 .statusDone {
-  color: oklch(0.45 0.12 145);
+  color: var(--success-color);
 }
 
 .statusError {
-  color: oklch(0.45 0.2 25);
+  color: var(--danger-color);
 }
 
 .barTrack {
   margin-top: 8px;
-  height: 4px;
-  border-radius: 2px;
+  height: 3px;
+  border-radius: var(--radius-pill);
   background: var(--border-color);
   overflow: hidden;
 }
 
 .barFill {
   height: 100%;
-  border-radius: 2px;
-  background: var(--text-primary);
+  border-radius: var(--radius-pill);
+  background: var(--accent-color);
   transition: width 0.12s ease-out;
 }
 
 .errDetail {
   margin-top: 6px;
   font-size: 12px;
-  color: oklch(0.45 0.2 25);
+  color: var(--danger-color);
   line-height: 1.4;
 }
