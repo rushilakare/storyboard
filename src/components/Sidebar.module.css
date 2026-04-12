@@ -1,10 +1,10 @@
 .sidebar {
-  width: 240px;
-  background-color: var(--bg-color); /* linear uses same bg as main or slightly different */
+  width: 220px;
+  background-color: var(--bg-color);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  padding: 12px 10px;
   height: 100vh;
   position: sticky;
   top: 0;
@@ -12,20 +12,21 @@
 }
 
 .logo {
-  margin-bottom: 28px;
+  margin-bottom: 20px;
   display: flex;
   align-items: center;
   width: 100%;
   min-width: 0;
-  padding-left: 0;
+  padding-left: 4px;
   text-decoration: none;
   color: inherit;
+  height: 36px;
 }
 
 .logoImage {
-  width: 100%;
-  height: auto;
-  max-height: 52px;
+  width: auto;
+  height: 28px;
+  max-width: 140px;
   object-fit: contain;
   object-position: left center;
 }
@@ -33,30 +34,36 @@
 .section {
   display: flex;
   flex-direction: column;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .sectionTitle {
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   font-weight: 600;
-  margin-bottom: 8px;
-  padding-left: 8px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  margin-top: 16px;
+}
+
+.section:first-of-type .sectionTitle {
+  margin-top: 0;
 }
 
 .navItem {
   display: flex;
   align-items: center;
-  padding: 6px 8px;
-  border-radius: 4px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.1s, color 0.1s;
+  transition: background-color 100ms ease-in-out, color 100ms ease-in-out;
   text-decoration: none;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+  gap: 8px;
 }
 
 .navItem:hover {
@@ -64,20 +71,26 @@
   color: var(--text-primary);
 }
 
+/* Active: no left border — icon turns amber, text goes medium weight */
 .navItemActive {
   background-color: var(--bg-surface-active);
   color: var(--text-primary);
-  border-left: 2px solid var(--accent-color);
-  padding-left: 6px;
+  font-weight: 500;
+}
+
+/* Icon inside active nav item gets amber accent color */
+.navItemActive svg {
+  color: var(--accent-color);
+  stroke-width: 2;
 }
 
 .footer {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: 12px;
   border-top: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .profileTrigger {
@@ -85,14 +98,15 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px;
+  padding: 6px 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
   font: inherit;
+  transition: background-color 100ms ease-in-out;
 }
 
 .profileTrigger:hover {
@@ -101,13 +115,13 @@
 
 .avatar {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent-color) 12%, var(--bg-surface-active));
+  background-color: var(--accent-light);
   color: var(--accent-color);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -118,7 +132,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .profileName {
@@ -136,12 +150,12 @@
 
 .popoverContent {
   z-index: 50;
-  min-width: 220px;
-  padding: 8px;
-  border-radius: 8px;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  background: var(--bg-color);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-popover);
 }
 
 .popoverEmail {
@@ -162,11 +176,11 @@
 .popoverItem {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
@@ -174,6 +188,7 @@
   text-align: left;
   text-decoration: none;
   font: inherit;
+  transition: background-color 100ms, color 100ms;
 }
 
 .popoverItem:hover {

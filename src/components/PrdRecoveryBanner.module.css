@@ -1,17 +1,17 @@
 .banner {
   margin: 0 48px 16px;
   padding: 16px 20px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--warning-color) 30%, transparent);
+  background: var(--warning-light);
+  box-shadow: var(--shadow-1);
 }
 
 .title {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--warning-color);
 }
 
 .description {
@@ -30,16 +30,17 @@
 .button {
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
-  background: var(--bg-color);
+  background: var(--bg-surface);
   color: var(--text-primary);
   cursor: pointer;
+  transition: background-color var(--duration-base);
 }
 
 .button:hover:not(:disabled) {
-  opacity: 0.9;
+  background: var(--bg-surface-hover);
 }
 
 .button:disabled {
@@ -50,16 +51,21 @@
 .buttonPrimary {
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   background: var(--text-primary);
-  color: var(--bg-color);
+  color: var(--text-inverse);
   border: 1px solid var(--text-primary);
+  transition: opacity var(--duration-base);
 }
 
 .buttonPrimary:hover:not(:disabled) {
-  opacity: 0.9;
+  opacity: 0.85;
+}
+
+.buttonPrimary:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .buttonPrimary:disabled {

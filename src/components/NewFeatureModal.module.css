@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.32);
+  background-color: var(--bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11,59 +11,65 @@
 .modal {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
-  width: 500px;
+  width: 480px;
   max-width: 90%;
-  border-radius: 10px;
-  padding: 32px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-modal);
 }
 
 .title {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   margin-bottom: 24px;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .formGroup {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .label {
-  font-size: 13px;
-  color: var(--text-secondary);
-  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .input, .textarea {
   background-color: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
   color: var(--text-primary);
   font-size: 14px;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-in-out),
+              box-shadow var(--duration-base) var(--ease-in-out);
   outline: none;
+  font-family: inherit;
 }
 
 .input:focus, .textarea:focus, .select:focus {
-  border-color: var(--accent-color);
+  border-color: var(--border-focus);
   box-shadow: var(--focus-ring);
 }
 
 .select {
   background-color: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
   color: var(--text-primary);
   font-size: 14px;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-in-out);
   cursor: pointer;
   outline: none;
+  font-family: inherit;
 }
 
 .workspacesHint {
@@ -88,25 +94,25 @@
 }
 
 .uploadZone {
-  border: 1px dashed var(--border-highlight);
-  border-radius: 6px;
+  border: 1.5px dashed var(--border-highlight);
+  border-radius: var(--radius-sm);
   padding: 16px 24px;
   text-align: center;
   margin-top: 24px;
   cursor: pointer;
   background-color: var(--bg-color);
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: background-color var(--duration-base), border-color var(--duration-base);
   outline: none;
 }
 
 .uploadZone:hover,
 .uploadZone:focus {
-  background-color: var(--bg-surface-hover);
+  background-color: var(--accent-light);
   border-color: var(--accent-color);
 }
 
 .uploadZoneDragging {
-  background-color: color-mix(in srgb, var(--accent-color) 6%, var(--bg-color));
+  background-color: var(--accent-light);
   border-color: var(--accent-color);
 }
 
@@ -132,7 +138,7 @@
   padding: 6px 10px;
   background-color: var(--bg-surface-hover);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
 }
 
@@ -169,24 +175,27 @@
   margin: 0 0 8px;
   font-size: 13px;
   line-height: 1.4;
-  color: #dc2626;
+  color: var(--danger-color);
 }
 
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 32px;
+  margin-top: 28px;
 }
 
 .cancelBtn {
-  padding: 8px 16px;
+  padding: 7px 16px;
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
+  background: transparent;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background-color 0.15s, color 0.15s;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-base) var(--ease-in-out),
+              color var(--duration-base) var(--ease-in-out);
 }
 
 .cancelBtn:hover {
@@ -195,18 +204,23 @@
 }
 
 .submitBtn {
-  padding: 8px 16px;
+  padding: 7px 16px;
   font-size: 13px;
   font-weight: 500;
   background-color: var(--text-primary);
-  color: var(--bg-color);
-  border-radius: 6px;
+  color: var(--text-inverse);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--text-primary);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: opacity var(--duration-base) var(--ease-in-out);
 }
 
 .submitBtn:hover:not(:disabled) {
-  background-color: #2a2a2a;
+  opacity: 0.85;
+}
+
+.submitBtn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .submitBtn:disabled {

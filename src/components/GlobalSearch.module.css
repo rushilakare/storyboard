@@ -1,29 +1,31 @@
 .trigger {
   width: 100%;
   text-align: left;
-  padding: 8px 10px;
+  padding: 7px 10px;
   margin-bottom: 16px;
   font-size: 12px;
   color: var(--text-muted);
-  background: var(--bg-surface);
+  background: var(--bg-surface-hover);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  height: 30px;
+  transition: border-color var(--duration-base), color var(--duration-base);
 }
 
 .trigger:hover {
-  border-color: var(--text-muted);
+  border-color: var(--border-highlight);
   color: var(--text-secondary);
 }
 
 .kbd {
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border-color);
   color: var(--text-muted);
   font-family: inherit;
@@ -33,7 +35,7 @@
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: color-mix(in srgb, var(--text-primary) 35%, transparent);
+  background: var(--bg-overlay);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -42,36 +44,32 @@
 
 .panel {
   width: 100%;
-  max-width: 520px;
+  max-width: 500px;
   max-height: min(70vh, 560px);
   display: flex;
   flex-direction: column;
-  background: var(--bg-color);
+  background: var(--bg-surface);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: 0 16px 48px color-mix(in srgb, var(--text-primary) 18%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
   overflow: hidden;
 }
 
 .searchField {
-  padding: 12px 14px;
+  padding: 0;
   border-bottom: 1px solid var(--border-color);
 }
 
 .input {
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px;
-  font-size: 14px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 15px;
+  border: none;
   background: var(--bg-surface);
   color: var(--text-primary);
-}
-
-.input:focus {
+  font-family: inherit;
   outline: none;
-  border-color: var(--text-muted);
 }
 
 .input::placeholder {
@@ -94,7 +92,7 @@
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   padding: 8px 14px 4px;
   margin: 0;
@@ -107,10 +105,18 @@
   color: var(--text-primary);
   text-decoration: none;
   border-left: 2px solid transparent;
+  transition: background-color var(--duration-fast), color var(--duration-fast),
+              border-left-color var(--duration-fast);
 }
 
 .resultLink:hover {
   background: var(--bg-surface-hover);
+}
+
+.resultLink.active {
+  background: var(--accent-light);
+  color: var(--accent-color);
+  border-left-color: var(--accent-color);
 }
 
 .resultTitle {
@@ -132,12 +138,14 @@
 
 .closeBtn {
   font-size: 12px;
+  font-weight: 500;
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-secondary);
   cursor: pointer;
+  transition: background-color var(--duration-base), color var(--duration-base);
 }
 
 .closeBtn:hover {

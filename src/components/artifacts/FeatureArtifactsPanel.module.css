@@ -19,32 +19,38 @@
 .backBtn {
   padding: 6px 12px;
   font-size: 13px;
+  font-weight: 500;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
-  color: var(--text-primary);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition: background-color var(--duration-base), color var(--duration-base);
 }
 
 .backBtn:hover {
-  background: var(--bg-surface-hover, rgba(0, 0, 0, 0.04));
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
 }
 
 .downloadBtn {
-  padding: 8px 14px;
+  padding: 6px 14px;
   font-size: 13px;
   font-weight: 500;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--text-primary);
   background: var(--text-primary);
-  color: var(--bg-surface);
+  color: var(--text-inverse);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: opacity var(--duration-base);
 }
 
 .downloadBtn:hover:not(:disabled) {
-  background-color: #2a2a2a;
+  opacity: 0.85;
+}
+
+.downloadBtn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .downloadBtn:disabled {
@@ -62,18 +68,21 @@
   display: block;
   width: 100%;
   text-align: left;
-  padding: 12px 14px;
+  padding: 14px 16px;
   margin-bottom: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   cursor: pointer;
   color: var(--text-primary);
-  transition: background 0.12s ease;
+  transition: box-shadow var(--duration-base) var(--ease-in-out),
+              border-color var(--duration-base) var(--ease-in-out);
+  box-shadow: var(--shadow-1);
 }
 
 .row:hover {
-  background: var(--bg-surface-hover, rgba(0, 0, 0, 0.04));
+  box-shadow: var(--shadow-2);
+  border-color: var(--border-highlight);
 }
 
 .rowMeta {
@@ -86,13 +95,13 @@
 .kindBadge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
-  background: var(--border-color);
-  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  background: var(--accent-light);
+  color: var(--accent-color);
 }
 
 .versionMuted {
@@ -136,5 +145,5 @@
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--danger-color);
 }

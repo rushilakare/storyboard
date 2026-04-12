@@ -1,22 +1,22 @@
 .container {
-  padding: 32px 48px;
+  padding: 40px 56px;
   width: 100%;
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
 .title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.025em;
   margin: 0 0 8px;
 }
 
 .subtitle {
   margin: 0 0 32px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .section {
@@ -24,10 +24,10 @@
 }
 
 .sectionTitle {
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   margin: 0 0 16px;
 }
@@ -38,27 +38,32 @@
 
 .label {
   display: block;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   margin-bottom: 6px;
 }
 
 .input {
   width: 100%;
   max-width: 400px;
-  padding: 8px 12px;
+  padding: 9px 12px;
   font-size: 13px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-primary);
   box-sizing: border-box;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--duration-base), box-shadow var(--duration-base);
 }
 
 .input:focus {
-  outline: none;
-  border-color: var(--text-muted);
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
 }
 
 .hint {
@@ -71,13 +76,13 @@
 
 .success {
   font-size: 13px;
-  color: color-mix(in srgb, var(--accent-color) 80%, var(--text-primary));
+  color: var(--success-color);
   margin-top: 10px;
 }
 
 .error {
   font-size: 13px;
-  color: #f87171;
+  color: var(--danger-color);
   margin-top: 10px;
 }
 
@@ -91,12 +96,13 @@
 .btn {
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-primary);
   cursor: pointer;
+  transition: background-color var(--duration-base);
 }
 
 .btn:hover:not(:disabled) {
@@ -110,12 +116,16 @@
 
 .btnPrimary {
   background: var(--text-primary);
-  color: var(--bg-surface);
+  color: var(--text-inverse);
   border-color: var(--text-primary);
 }
 
 .btnPrimary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  opacity: 0.85;
+}
+
+.btnPrimary:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .segment {
@@ -127,12 +137,14 @@
 
 .segment button {
   font-size: 12px;
+  font-weight: 500;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-secondary);
   cursor: pointer;
+  transition: background-color var(--duration-base), color var(--duration-base);
 }
 
 .segment button:hover {
@@ -141,7 +153,7 @@
 }
 
 .segmentActive {
-  border-color: var(--text-muted) !important;
+  border-color: var(--border-highlight) !important;
   color: var(--text-primary) !important;
   background: var(--bg-surface-active) !important;
 }
@@ -154,31 +166,36 @@
 }
 
 .stat {
-  padding: 12px 14px;
+  padding: 14px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
+  box-shadow: var(--shadow-1);
 }
 
 .statLabel {
   font-size: 11px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   margin-bottom: 4px;
 }
 
 .statValue {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
 }
 
 .tableWrap {
   overflow-x: auto;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: 20px;
+  box-shadow: var(--shadow-1);
 }
 
 .table {
@@ -189,7 +206,7 @@
 
 .table th,
 .table td {
-  padding: 10px 12px;
+  padding: 10px 16px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
 }
@@ -197,13 +214,18 @@
 .table th {
   font-weight: 600;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .table tr:last-child td {
   border-bottom: none;
+}
+
+.table tr:hover td {
+  background-color: var(--bg-surface-hover);
+  transition: background-color 100ms ease-in-out;
 }
 
 .empty {
